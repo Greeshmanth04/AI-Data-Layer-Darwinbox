@@ -6,6 +6,7 @@ import accessRoute from './access.route';
 import catalogRoute from './catalog.route';
 import dashboardRoute from './dashboard.route';
 import relationshipRoute from './relationship.route';
+import metricRoute from './metric.route';
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use('/access', accessRoute);
 router.use('/catalog', catalogRoute);
 router.use('/dashboard', dashboardRoute);
 router.use('/relationships', relationshipRoute);
+router.use('/metrics', metricRoute);
 
 export default router;
