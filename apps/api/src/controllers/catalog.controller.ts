@@ -37,10 +37,38 @@ export const updateCollection = async (req: Request, res: Response, next: NextFu
   } catch (err) { next(err); }
 };
 
+export const deleteCollection = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const coll = await CollectionMetadata.findById(req.params.id);
+    if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
+    await FieldMetadata.deleteMany({ collectionId: coll._id });
+    await coll.deleteOne();
+    await ActivityService.logActivity(req.user._id, 'DELETED_COLLECTION', coll.name);
+    sendSuccess(res, 200, { message: 'Collection deleted' });
+  } catch (err) { next(err); }
+};
+
 export const getFieldById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const field = await CatalogService.getPermittedFieldById(req.user._id, req.params.id);
     sendSuccess(res, 200, field);
+  } catch (err) { next(err); }
+};
+
+export const createField = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const coll = await CollectionMetadata.findById(req.body.collectionId);
+    if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
+    
+    // Auto-derive displayName if missing
+    const fieldData = {
+      ...req.body,
+      displayName: req.body.name.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+    };
+    
+    const field = await FieldMetadata.create(fieldData);
+    await ActivityService.logActivity(req.user._id, 'CREATED_FIELD', field.name);
+    sendSuccess(res, 201, field);
   } catch (err) { next(err); }
 };
 
@@ -53,11 +81,27 @@ export const updateField = async (req: Request, res: Response, next: NextFunctio
       throw new AppError(403, 'FORBIDDEN', 'Only custom fields can have descriptions updated manually by non-admins');
     }
 
+    if (req.body.description !== undefined) {
+      req.body.manualDescription = req.body.description;
+      delete req.body.description;
+    }
+
     Object.assign(field, req.body);
     await field.save();
     
     await ActivityService.logActivity(req.user._id, 'UPDATED_FIELD', field.name);
     sendSuccess(res, 200, field);
+  } catch (err) { next(err); }
+};
+
+export const deleteField = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const field = await FieldMetadata.findById(req.params.id);
+    if (!field) throw new AppError(404, 'NOT_FOUND', 'Field not found');
+    
+    await field.deleteOne();
+    await ActivityService.logActivity(req.user._id, 'DELETED_FIELD', field.name);
+    sendSuccess(res, 200, { message: 'Field deleted' });
   } catch (err) { next(err); }
 };
 
@@ -69,7 +113,8 @@ export const generateFieldDescription = async (req: Request, res: Response, next
     const collection = field.collectionId as any;
     const description = CatalogService.generateHeuristicDescription(field.name, collection.name);
     
-    field.description = description;
+    // @ts-ignore
+    field.aiDescription = description;
     await field.save();
 
     await ActivityService.logActivity(req.user._id, 'GENERATED_DESCRIPTION', field.name);

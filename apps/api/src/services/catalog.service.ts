@@ -8,11 +8,20 @@ export class CatalogService {
   static async getPermittedCollections(userId: string) {
     const collections = await CollectionMetadata.find().lean();
     const permitted = [];
+    const allFields = await FieldMetadata.find().lean();
 
     for (const coll of collections) {
       const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, false);
       if (resolved && resolved.canRead) {
-        permitted.push(coll);
+        const { allowed, denied } = resolved.effectiveFields;
+        const collFields = allFields.filter(f => String(f.collectionId) === String(coll._id));
+        const permittedCount = collFields.filter(f => {
+          if (denied.includes(f.name)) return false;
+          if (allowed.length > 0 && !allowed.includes(f.name)) return false;
+          return true;
+        }).length;
+        
+        permitted.push({ ...coll, fieldCount: permittedCount });
       }
     }
 
@@ -46,9 +55,15 @@ export class CatalogService {
       if (denied.includes(f.name)) return false;
       if (allowed.length > 0 && !allowed.includes(f.name)) return false;
       return true;
-    });
+    }).map(f => ({
+      ...f,
+      description: (f as any).manualDescription || (f as any).aiDescription || null
+    }));
 
-    return { ...coll, fields: permittedFields };
+    const db = (FieldMetadata.db as any).db;
+    const estimatedRecords = db ? await db.collection(coll.name).estimatedDocumentCount().catch(() => 0) : 0;
+
+    return { ...coll, fields: permittedFields, estimatedRecords };
   }
 
   static async getPermittedFieldById(userId: string, fieldId: string) {
@@ -63,7 +78,7 @@ export class CatalogService {
     }
 
     PermissionService.assertFieldsAccessible([field.name], resolved);
-    return field;
+    return { ...field, description: (field as any).manualDescription || (field as any).aiDescription || null };
   }
 
   static generateHeuristicDescription(fieldName: string, collectionName: string): string {

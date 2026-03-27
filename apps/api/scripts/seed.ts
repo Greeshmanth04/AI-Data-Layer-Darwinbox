@@ -7,6 +7,7 @@ import { UserGroup } from '../src/models/userGroup.model';
 import { CollectionMetadata } from '../src/models/collectionMetadata.model';
 import { MetricDefinition } from '../src/models/metricDefinition.model';
 import { Relationship } from '../src/models/relationship.model';
+import { FieldMetadata } from '../src/models/fieldMetadata.model';
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ async function seed() {
     
     // Drop all existing collections to ensure idempotency
     console.log('Dropping existing data securely...');
+    if (!mongoose.connection.db) throw new Error("DB execution invalid natively");
     const collections = await mongoose.connection.db.collections();
     for (const coll of collections) {
       await coll.drop().catch(() => {});
@@ -53,30 +55,48 @@ async function seed() {
     ]);
 
     console.log('Seeding Collection Metadata...');
-    await CollectionMetadata.insertMany([
+    const collectionsToSeed = [
       { name: 'employees', displayName: 'Employees', module: 'CORE', description: 'Core employee profile data including contact info, department, and salary.', fields: [
-         { name: 'employee_id', type: 'string', description: 'Unique identifier' },
-         { name: 'first_name', type: 'string', description: 'Legal first name' },
-         { name: 'last_name', type: 'string', description: 'Legal last name' },
-         { name: 'email', type: 'string', description: 'Corporate email' },
-         { name: 'department', type: 'string', description: 'Assigned cost center' },
-         { name: 'salary', type: 'number', description: 'Annual compensation' }
+         { name: 'employee_id', type: 'string', isCustom: false },
+         { name: 'first_name', type: 'string', isCustom: false },
+         { name: 'last_name', type: 'string', isCustom: false },
+         { name: 'email', type: 'string', isCustom: false },
+         { name: 'department', type: 'string', isCustom: true, manualDescription: 'Mapped organizational domain explicitly' },
+         { name: 'salary', type: 'number', isCustom: true }
       ]},
       { name: 'positions', displayName: 'Positions', module: 'CORE', description: 'Organizational charting structures and job families.', fields: [
-         { name: 'position_id', type: 'string', description: 'Unique ID' },
-         { name: 'title', type: 'string', description: 'Job Title' }
+         { name: 'position_id', type: 'string', isCustom: false },
+         { name: 'title', type: 'string', isCustom: false }
       ]},
       { name: 'offers', displayName: 'Offers', module: 'RECRUITMENT', description: 'Accepted offer letters strictly.', fields: []},
       { name: 'leave', displayName: 'Leave', module: 'TIME', description: 'Time-off requests globally.', fields: []},
       { name: 'attendance', displayName: 'Attendance', module: 'TIME', description: 'Clock-in logs safely.', fields: [
-         { name: 'employee_id', type: 'string', description: 'Linked employee natively' },
-         { name: 'date', type: 'string', description: 'Log date' },
-         { name: 'hours', type: 'number', description: 'Duration recorded' }
+         { name: 'employee_id', type: 'string', isCustom: false },
+         { name: 'date', type: 'string', isCustom: false },
+         { name: 'hours', type: 'number', isCustom: false }
       ]},
       { name: 'payroll', displayName: 'Payroll', module: 'PAYROLL', description: 'Compensation ledgers strictly.', fields: []}
-    ]);
+    ];
+
+    for (const c of collectionsToSeed) {
+       const coll = await CollectionMetadata.create({ name: c.name, displayName: c.displayName, module: c.module, description: c.description });
+       if (c.fields.length > 0) {
+         const fieldDocs = c.fields.map(f => ({
+            collectionId: coll._id,
+            name: f.name,
+            displayName: f.name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            type: f.type,
+            isCustom: f.isCustom,
+            aiDescription: `Extracted ${f.name} attribute natively`,
+            manualDescription: (f as any).manualDescription || undefined,
+            tags: f.isCustom ? ['Custom'] : ['Standard']
+         }));
+         await FieldMetadata.insertMany(fieldDocs);
+       }
+    }
 
     console.log('Seeding HR Data properly...');
+    if (!mongoose.connection.db) throw new Error("DB execution invalid natively");
     const db = mongoose.connection.db;
     
     // Seed 20 mocked records for Employees

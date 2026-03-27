@@ -6,7 +6,8 @@ export interface IFieldMetadata extends Document {
   displayName: string;
   type: string;
   isCustom: boolean;
-  description?: string;
+  aiDescription?: string;
+  manualDescription?: string;
   tags: string[];
 }
 
@@ -16,11 +17,12 @@ const FieldMetadataSchema = new Schema<IFieldMetadata>({
   displayName: { type: String, required: true },
   type: { type: String, required: true },
   isCustom: { type: Boolean, default: false },
-  description: { type: String },
+  aiDescription: { type: String },
+  manualDescription: { type: String },
   tags: { type: [String], default: [] }
 }, { timestamps: true });
 
 FieldMetadataSchema.index({ collectionId: 1, name: 1 }, { unique: true });
-FieldMetadataSchema.index({ name: 'text', description: 'text', tags: 'text' });
+FieldMetadataSchema.index({ name: 'text', aiDescription: 'text', manualDescription: 'text', tags: 'text' });
 
 export const FieldMetadata = mongoose.model<IFieldMetadata>('FieldMetadata', FieldMetadataSchema);
