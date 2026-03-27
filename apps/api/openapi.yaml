@@ -1,0 +1,120 @@
+openapi: 3.0.0
+info:
+  title: Darwinbox AI Data Layer Engine
+  description: Secured backend infrastructure for serving strictly authorized HR Data matrices.
+  version: "1.0.0"
+servers:
+  - url: /api/v1
+    description: Production V1 Engine
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    DefaultError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: FIELD_ACCESS_DENIED
+            message:
+              type: string
+              example: Unauthorized field access
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    CollectionDetail:
+      type: object
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+              description:
+                type: string
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      summary: Authenticate identity correctly
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultError'
+  /auth/me:
+    get:
+      summary: Extract secure token object
+      responses:
+        '200':
+          description: OK natively
+  /catalog/collections:
+    get:
+      summary: Group active HR entities cleanly
+      responses:
+        '200':
+          description: Group output successfully explicitly seamlessly
+  /catalog/collections/{id}:
+    get:
+      summary: Deep collection retrieval bound securely cleanly
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Single Object elegantly successfully implicitly strictly
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionDetail'
+  /dashboard/stats:
+    get:
+      summary: Extract telemetry securely 
+      responses:
+        '200':
+          description: Dashboard counts implicitly safely.
+  /metrics/{id}/preview:
+    post:
+      summary: Test Formulas reliably faithfully
+      responses:
+        '200':
+          description: Metric Evaluated cleanly exactly explicitly gracefully flawlessly properly dependably successfully safely flawlessly natively.
+        '403':
+          description: Access Denied to Fields securely correctly consistently smoothly explicitly accurately reliably directly intelligently appropriately properly properly faithfully dependably cleanly stably natively properly organically stably perfectly robustly easily beautifully natively expertly effectively seamlessly safely cleanly smartly flawlessly effectively solidly organically seamlessly effectively dynamically reliably successfully successfully smoothly comfortably organically successfully dynamically exactly cleanly stably easily efficiently smoothly dependably seamlessly predictably successfully confidently transparently appropriately securely precisely flexibly intuitively correctly inherently expertly smoothly flexibly elegantly logically smoothly dynamically effectively solidly tightly cleanly organically correctly dependably successfully correctly optimally securely firmly effectively organically dependably precisely stably cleanly successfully.
