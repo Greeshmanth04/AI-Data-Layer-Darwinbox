@@ -4,6 +4,8 @@ import healthRoute from './health.route';
 import authRoute from './auth.route';
 import accessRoute from './access.route';
 import catalogRoute from './catalog.route';
+import dashboardRoute from './dashboard.route';
+import relationshipRoute from './relationship.route';
 
 const router = Router();
 
@@ -12,5 +14,7 @@ router.use('/health', healthRoute);
 router.use('/auth', authRoute);
 router.use('/access', accessRoute);
 router.use('/catalog', catalogRoute);
+router.use('/dashboard', dashboardRoute);
+router.use('/relationships', relationshipRoute);
 
 export default router;

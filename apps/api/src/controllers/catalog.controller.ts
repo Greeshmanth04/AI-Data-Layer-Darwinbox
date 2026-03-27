@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { CatalogService } from '../services/catalog.service';
 import { CollectionMetadata } from '../models/collectionMetadata.model';
 import { FieldMetadata } from '../models/fieldMetadata.model';
+import { ActivityService } from '../services/activity.service';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../utils/errors';
 
@@ -22,6 +23,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
 export const createCollection = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const coll = await CollectionMetadata.create(req.body);
+    await ActivityService.logActivity(req.user._id, 'CREATED_COLLECTION', coll.name);
     sendSuccess(res, 201, coll);
   } catch (err) { next(err); }
 };
@@ -30,6 +32,7 @@ export const updateCollection = async (req: Request, res: Response, next: NextFu
   try {
     const coll = await CollectionMetadata.findByIdAndUpdate(req.params.id, req.body, { new: true }).lean();
     if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
+    await ActivityService.logActivity(req.user._id, 'UPDATED_COLLECTION', coll.name);
     sendSuccess(res, 200, coll);
   } catch (err) { next(err); }
 };
@@ -53,6 +56,7 @@ export const updateField = async (req: Request, res: Response, next: NextFunctio
     Object.assign(field, req.body);
     await field.save();
     
+    await ActivityService.logActivity(req.user._id, 'UPDATED_FIELD', field.name);
     sendSuccess(res, 200, field);
   } catch (err) { next(err); }
 };
@@ -63,12 +67,12 @@ export const generateFieldDescription = async (req: Request, res: Response, next
     if (!field || !field.collectionId) throw new AppError(404, 'NOT_FOUND', 'Field not found');
 
     const collection = field.collectionId as any;
-    
     const description = CatalogService.generateHeuristicDescription(field.name, collection.name);
     
     field.description = description;
     await field.save();
 
+    await ActivityService.logActivity(req.user._id, 'GENERATED_DESCRIPTION', field.name);
     sendSuccess(res, 200, { description });
   } catch (err) { next(err); }
 };
