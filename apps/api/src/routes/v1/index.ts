@@ -3,6 +3,7 @@ import healthRoute from './health.route';
 
 import authRoute from './auth.route';
 import accessRoute from './access.route';
+import catalogRoute from './catalog.route';
 
 const router = Router();
 
@@ -10,5 +11,6 @@ const router = Router();
 router.use('/health', healthRoute);
 router.use('/auth', authRoute);
 router.use('/access', accessRoute);
+router.use('/catalog', catalogRoute);
 
 export default router;

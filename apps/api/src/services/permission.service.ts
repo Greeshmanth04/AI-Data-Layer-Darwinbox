@@ -33,7 +33,7 @@ export class PermissionService {
     return { $and: andClauses };
   }
 
-  static async resolveCollectionPermissions(userId: string, collectionName: string): Promise<ResolvedPermissions> {
+  static async resolveCollectionPermissions(userId: string, collectionName: string, throwOnDeny: boolean = true): Promise<ResolvedPermissions | null> {
     const user = await User.findById(userId);
     if (!user) throw new AppError(401, 'UNAUTHORIZED', 'User not found');
 
@@ -72,7 +72,10 @@ export class PermissionService {
       }
     }
 
-    if (!canRead) throw new AppError(403, 'COLLECTION_ACCESS_DENIED', `Access is strictly denied for collection: ${collectionName}.`);
+    if (!canRead) {
+      if (throwOnDeny) throw new AppError(403, 'COLLECTION_ACCESS_DENIED', `Access is strictly denied for collection: ${collectionName}.`);
+      return null;
+    }
 
     return {
       canRead: true,
