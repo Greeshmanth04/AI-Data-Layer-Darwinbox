@@ -1,0 +1,15 @@
+openapi: 3.0.0
+info:
+  title: AI Data Layer API
+  version: 1.0.0
+  description: Strict mapping for the Darwinbox 3-layer permission Data Layer.
+servers:
+  - url: /api/v1
+    description: Current API Version
+paths:
+  /health:
+    get:
+      summary: API Healthcheck
+      responses:
+        '200':
+          description: OK
