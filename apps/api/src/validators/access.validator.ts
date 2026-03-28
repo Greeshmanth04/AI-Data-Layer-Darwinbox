@@ -24,7 +24,7 @@ export const updateGroupMembersSchema = z.object({
 
 const rowFilterSchema = z.object({
   field: z.string(),
-  operator: z.enum(['equals', 'contains', 'in', 'gt', 'lt']),
+  operator: z.enum(['eq', 'neq', 'in', 'nin', 'gt', 'gte', 'lt', 'lte']),
   value: z.any()
 });
 
@@ -41,6 +41,7 @@ export const updatePermissionSchema = z.object({
 export const createUserSchema = z.object({
   body: z.object({
     email: z.string().email(),
+    name: z.string().optional(),
     password: z.string().min(6),
     role: z.enum(['platform_admin', 'data_steward', 'viewer']).default('viewer')
   })
@@ -49,6 +50,8 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   params: z.object({ id: z.string() }),
   body: z.object({
-    role: z.enum(['platform_admin', 'data_steward', 'viewer'])
+    role: z.enum(['platform_admin', 'data_steward', 'viewer']).optional(),
+    name: z.string().optional(),
+    groupIds: z.array(z.string()).optional()
   })
 });

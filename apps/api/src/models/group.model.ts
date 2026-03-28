@@ -1,17 +1,19 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export type RowFilterOperator = 'eq' | 'neq' | 'in' | 'nin' | 'gt' | 'gte' | 'lt' | 'lte';
+
 export interface IRowFilter {
   field: string;
-  operator: 'equals' | 'contains' | 'in' | 'gt' | 'lt';
-  value: any;
+  operator: RowFilterOperator;
+  value: any; // string | number | string[] | number[]
 }
 
 export interface ICollectionPermission {
   collectionName: string;
   canRead: boolean;
-  allowedFields: string[];
-  deniedFields: string[];
-  rowFilters: IRowFilter[];
+  allowedFields: string[];  // empty = all fields allowed
+  deniedFields: string[];   // explicit exclusions; overrides allowedFields
+  rowFilters: IRowFilter[]; // zero or more conditions (AND-combined)
 }
 
 export interface IGroup extends Document {
@@ -22,7 +24,11 @@ export interface IGroup extends Document {
 
 const RowFilterSchema = new Schema<IRowFilter>({
   field: { type: String, required: true },
-  operator: { type: String, enum: ['equals', 'contains', 'in', 'gt', 'lt'], required: true },
+  operator: {
+    type: String,
+    enum: ['eq', 'neq', 'in', 'nin', 'gt', 'gte', 'lt', 'lte'],
+    required: true
+  },
   value: { type: Schema.Types.Mixed, required: true }
 }, { _id: false });
 

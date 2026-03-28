@@ -9,7 +9,17 @@ import bcrypt from 'bcryptjs';
 export const getGroups = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const groups = await Group.find().lean();
-    sendSuccess(res, 200, groups);
+    const userGroups = await UserGroup.find().lean();
+    
+    const enrichedGroups = groups.map(g => {
+      const gUsers = userGroups.filter(ug => String(ug.groupId) === String(g._id));
+      return {
+        ...g,
+        memberCount: gUsers.length,
+        userIds: gUsers.map(ug => ug.userId)
+      };
+    });
+    sendSuccess(res, 200, enrichedGroups);
   } catch (error) { next(error); }
 };
 
@@ -87,22 +97,42 @@ export const deleteCollectionPermission = async (req: Request, res: Response, ne
 export const getUsers = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const users = await User.find().select('-passwordHash').lean();
-    sendSuccess(res, 200, users);
+    const userGroups = await UserGroup.find().lean();
+    
+    const enrichedUsers = users.map(u => ({
+      ...u,
+      groupIds: userGroups.filter(ug => String(ug.userId) === String(u._id)).map(ug => ug.groupId)
+    }));
+    sendSuccess(res, 200, enrichedUsers);
   } catch (error) { next(error); }
 };
 
 export const createUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password, role, name } = req.body;
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ email, passwordHash, role });
-    sendSuccess(res, 201, { id: user._id, email: user.email, role: user.role });
+    const user = await User.create({ email, name, passwordHash, role });
+    sendSuccess(res, 201, { id: user._id, email: user.email, name: user.name, role: user.role });
   } catch (error) { next(error); }
 };
 
 export const updateUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = await User.findByIdAndUpdate(req.params.id, { role: req.body.role }, { new: true }).select('-passwordHash').lean();
+    const { role, name, groupIds } = req.body;
+    const updateData: any = {};
+    if (role) updateData.role = role;
+    if (name !== undefined) updateData.name = name;
+    
+    const user = await User.findByIdAndUpdate(req.params.id, updateData, { new: true }).select('-passwordHash').lean();
+    
+    if (groupIds) {
+      await UserGroup.deleteMany({ userId: req.params.id });
+      if (groupIds.length > 0) {
+        const inserts = groupIds.map((gid: string) => ({ userId: req.params.id, groupId: gid }));
+        await UserGroup.insertMany(inserts);
+      }
+    }
+    
     sendSuccess(res, 200, user);
   } catch (error) { next(error); }
 };

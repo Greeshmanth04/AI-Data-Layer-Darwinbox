@@ -11,7 +11,7 @@ import * as schemas from '../../validators/access.validator';
 
 const router = Router();
 
-router.use(authenticateUser, requireRole(['platform_admin']));
+router.use(authenticateUser, requireRole(['platform_admin', 'data_steward']));
 
 // Groups
 router.get('/groups', getGroups);
@@ -29,7 +29,7 @@ router.delete('/groups/:id/permissions/:collId', deleteCollectionPermission);
 
 // Users
 router.get('/users', getUsers);
-router.post('/users', validateRequest(schemas.createUserSchema), createUser);
+router.post('/users', validateRequest(schemas.createUserSchema), requireRole(['platform_admin']), createUser);
 router.put('/users/:id', validateRequest(schemas.updateUserSchema), updateUser);
 
 export default router;
