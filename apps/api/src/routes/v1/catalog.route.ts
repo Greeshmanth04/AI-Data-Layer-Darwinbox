@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { 
   getCollections, getCollectionById, createCollection, updateCollection, deleteCollection,
-  getFieldById, updateField, generateFieldDescription, createField, deleteField
+  getFieldById, updateField, generateFieldDescription, createField, deleteField,
+  getDictionary
 } from '../../controllers/catalog.controller';
 import { validateRequest } from '../../middleware/validate';
 import { authenticateUser } from '../../middleware/auth';
@@ -12,6 +13,7 @@ const router = Router();
 
 router.use(authenticateUser);
 
+router.get('/dictionary', getDictionary);
 router.get('/collections', getCollections);
 router.get('/collections/:id', getCollectionById);
 router.post('/collections', requireRole(['platform_admin']), validateRequest(schemas.createCollectionSchema), createCollection);

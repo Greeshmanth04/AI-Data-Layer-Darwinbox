@@ -11,6 +11,9 @@ export interface IMetricDefinition extends Document {
   formula: string;
   baseCollection: string;
   description?: string;
+  category?: string;
+  lastComputedValue?: number;
+  lastComputedAt?: Date;
   previews: IMetricPreview[];
 }
 
@@ -25,6 +28,9 @@ const MetricDefinitionSchema = new Schema<IMetricDefinition>({
   formula: { type: String, required: true },
   baseCollection: { type: String, required: true },
   description: { type: String },
+  category: { type: String },
+  lastComputedValue: { type: Number },
+  lastComputedAt: { type: Date },
   previews: { type: [MetricPreviewSchema], default: [] }
 }, { timestamps: true });
 

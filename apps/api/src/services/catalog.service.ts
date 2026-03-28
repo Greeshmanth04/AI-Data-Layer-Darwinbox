@@ -88,4 +88,28 @@ export class CatalogService {
     const cleanColl = collectionName.replace(/s$/, '').toLowerCase();
     return `The ${humanized} value associated with the ${cleanColl}.`;
   }
+
+  static async getDictionary(userId: string) {
+    const collections = await CollectionMetadata.find().lean();
+    const allFields = await FieldMetadata.find().lean();
+    
+    const dictionary = [];
+    
+    for (const coll of collections) {
+      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, false);
+      if (resolved && resolved.canRead) {
+        const { allowed, denied } = resolved.effectiveFields;
+        const collFields = allFields.filter(f => String(f.collectionId) === String(coll._id));
+        const permittedFields = collFields.filter(f => {
+          if (denied.includes(f.name)) return false;
+          if (allowed.length > 0 && !allowed.includes(f.name)) return false;
+          return true;
+        }).map(f => f.name);
+        
+        dictionary.push({ name: coll.name, fields: permittedFields });
+      }
+    }
+    
+    return dictionary;
+  }
 }

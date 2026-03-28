@@ -1,16 +1,34 @@
 import mongoose from 'mongoose';
 import { PermissionService } from './permission.service';
+import { Relationship } from '../models/relationship.model';
 import { AppError } from '../utils/errors';
 
+export interface ParsedToken {
+  raw: string;
+  func: string;
+  collection: string;
+  field: string | null;
+  whereField: string | null;
+  whereValue: string | null;
+}
+
 export class MetricService {
-  static parseTokens(formula: string) {
-    const regex = /(COUNT|SUM|AVG|MIN|MAX)\s*\(\s*([a-zA-Z0-9_]+)(?:\.([a-zA-Z0-9_]+))?(?:\s+WHERE\s+([a-zA-Z0-9_]+)\s*=\s*'([^']+)')?\s*\)/g;
-    const tokens = [];
+  /**
+   * Parses formula tokens like:
+   *   COUNT(employees)
+   *   SUM(employees.salary)
+   *   AVG(payroll.net_salary WHERE department = "Engineering")
+   *   COUNT(employees WHERE status = 'Active')
+   * Supports both single and double quoted string values in WHERE clauses.
+   */
+  static parseTokens(formula: string): ParsedToken[] {
+    const regex = /(COUNT|SUM|AVG|MIN|MAX)\s*\(\s*([a-zA-Z0-9_]+)(?:\.([a-zA-Z0-9_]+))?(?:\s+WHERE\s+([a-zA-Z0-9_.]+)\s*=\s*["']([^"']+)["'])?\s*\)/gi;
+    const tokens: ParsedToken[] = [];
     let match;
     while ((match = regex.exec(formula)) !== null) {
       tokens.push({
         raw: match[0],
-        func: match[1],
+        func: match[1].toUpperCase(),
         collection: match[2],
         field: match[3] || null,
         whereField: match[4] || null,
@@ -20,45 +38,146 @@ export class MetricService {
     return tokens;
   }
 
-  static async validateSyntax(formula: string) {
-    const tokens = this.parseTokens(formula);
-    if (tokens.length === 0) {
-      throw new AppError(400, 'INVALID_FORMULA', 'Formula contains no valid aggregation tokens.');
+  /**
+   * Validates formula syntax without executing it.
+   * Returns parsed tokens on success, throws AppError on failure.
+   */
+  static async validateSyntax(formula: string): Promise<ParsedToken[]> {
+    if (!formula || formula.trim().length === 0) {
+      throw new AppError(400, 'INVALID_FORMULA', 'Formula cannot be empty.');
     }
+
+    const tokens = this.parseTokens(formula);
+
+    if (tokens.length === 0) {
+      throw new AppError(400, 'INVALID_FORMULA', 
+        'No valid aggregation functions found. Use COUNT(collection), SUM(collection.field), AVG(collection.field), MIN(collection.field), or MAX(collection.field).');
+    }
+
     for (const t of tokens) {
       if (t.func !== 'COUNT' && !t.field) {
-        throw new AppError(400, 'INVALID_FORMULA', `Function ${t.func} requires a field strictly natively (e.g. ${t.func}(${t.collection}.fieldName)).`);
+        throw new AppError(400, 'INVALID_FORMULA', 
+          `${t.func}() requires a field reference. Example: ${t.func}(${t.collection}.fieldName)`);
       }
     }
+
+    // Validate that the arithmetic expression is structurally sound
+    let testExpr = formula;
+    for (const token of tokens) {
+      testExpr = testExpr.replace(token.raw, '1');
+    }
+    const sanitized = testExpr.replace(/[^0-9+\-*/(). ]/g, '');
+    try {
+      new Function('return ' + sanitized)();
+    } catch {
+      throw new AppError(400, 'INVALID_FORMULA', 
+        'The arithmetic expression around the aggregate functions is invalid. Check for mismatched parentheses or operators.');
+    }
+
     return tokens;
   }
 
-  static async evaluateToken(token: any, userId: string): Promise<number> {
-    const resolved = await PermissionService.resolveCollectionPermissions(userId, token.collection, false);
+  /**
+   * Evaluates a single parsed token against the database with permission checks.
+   */
+  static async evaluateToken(token: ParsedToken, userId: string): Promise<number> {
+    // Determine the actual MongoDB collection to query
+    let queryCollection = token.collection;
+    let whereField = token.whereField;
+    let foreignColl: string | null = null;
+    let foreignField: string | null = null;
+
+    // Handle cross-collection WHERE: e.g. WHERE employees.department = "Engineering"
+    if (whereField && whereField.includes('.')) {
+      const parts = whereField.split('.');
+      if (parts[0] !== queryCollection) {
+        foreignColl = parts[0];
+        foreignField = parts.slice(1).join('.');
+      } else {
+        whereField = parts.slice(1).join('.');
+      }
+    }
+
+    // Permission check: collection-level read access for base
+    const resolved = await PermissionService.resolveCollectionPermissions(userId, queryCollection, false);
     if (!resolved || !resolved.canRead) {
-       throw new AppError(403, 'COLLECTION_ACCESS_DENIED', `Formula requires reads against natively Restricted Collection: ${token.collection}`);
+      throw new AppError(403, 'COLLECTION_ACCESS_DENIED', 
+        `You do not have read access to collection '${queryCollection}'.`);
     }
 
-    const fieldsToCheck = [];
-    if (token.field) fieldsToCheck.push(token.field);
-    if (token.whereField) fieldsToCheck.push(token.whereField);
-    
-    if (fieldsToCheck.length > 0) {
-      PermissionService.assertFieldsAccessible(fieldsToCheck, resolved);
+    // Permission check: field-level access for base
+    if (token.field) {
+      PermissionService.assertFieldsAccessible([token.field], resolved);
+    }
+    if (whereField && !foreignColl) {
+      PermissionService.assertFieldsAccessible([whereField], resolved);
     }
 
-    const matchStage: any = PermissionService.buildMongoQuery(resolved);
-    const finalMatch: any = {};
-    if (Object.keys(matchStage).length > 0) {
-       finalMatch.$and = [matchStage];
+    const permMatch = PermissionService.buildMongoQuery(resolved);
+    const aggregationPipeline: any[] = [];
+
+    if (Object.keys(permMatch).length > 0) {
+      aggregationPipeline.push({ $match: permMatch });
     }
 
-    if (token.whereField && token.whereValue) {
-      if (!finalMatch.$and) finalMatch.$and = [];
-      finalMatch.$and.push({ [token.whereField]: { $regex: new RegExp(`^${token.whereValue}$`, 'i') } }); 
+    if (foreignColl && foreignField) {
+      const foreignResolved = await PermissionService.resolveCollectionPermissions(userId, foreignColl, false);
+      if (!foreignResolved || !foreignResolved.canRead) {
+        throw new AppError(403, 'COLLECTION_ACCESS_DENIED', 
+          `Cross-collection query requires read access to '${foreignColl}'.`);
+      }
+      PermissionService.assertFieldsAccessible([foreignField], foreignResolved);
+
+      const rel = await Relationship.findOne({
+        $or: [
+          { sourceCollection: queryCollection, targetCollection: foreignColl },
+          { targetCollection: queryCollection, sourceCollection: foreignColl }
+        ]
+      });
+
+      if (!rel) {
+         throw new AppError(400, 'CROSS_COLLECTION_ERROR', `No relationship defined between '${queryCollection}' and '${foreignColl}'.`);
+      }
+
+      const localField = rel.sourceCollection === queryCollection ? rel.sourceField : rel.targetField;
+      const remoteField = rel.sourceCollection === queryCollection ? rel.targetField : rel.sourceField;
+
+      const foreignPermMatch = PermissionService.buildMongoQuery(foreignResolved);
+      
+      const pipelineMatch: any = {
+         $expr: { $eq: [`$${remoteField}`, "$$local_id"] }
+      };
+
+      if (Object.keys(foreignPermMatch).length > 0) {
+         pipelineMatch.$and = [foreignPermMatch];
+      }
+      
+      if (token.whereValue) {
+         pipelineMatch.$and = pipelineMatch.$and || [];
+         pipelineMatch.$and.push({ [foreignField]: { $regex: new RegExp(`^${token.whereValue}$`, 'i') } });
+      }
+
+      aggregationPipeline.push({
+         $lookup: {
+            from: foreignColl,
+            let: { local_id: `$${localField}` },
+            pipeline: [
+               { $match: pipelineMatch }
+            ],
+            as: "__joined"
+         }
+      });
+
+      aggregationPipeline.push({ $match: { "__joined": { $ne: [] } } });
+
+    } else if (whereField && token.whereValue) {
+      aggregationPipeline.push({
+         $match: { [whereField]: { $regex: new RegExp(`^${token.whereValue}$`, 'i') } }
+      });
     }
 
-    let groupStage: any = { _id: null };
+    // Build aggregation group stage
+    const groupStage: any = { _id: null };
     if (token.func === 'COUNT') {
       groupStage.val = { $sum: 1 };
     } else {
@@ -66,20 +185,25 @@ export class MetricService {
       groupStage.val = { [op]: `$${token.field}` };
     }
 
-    if (!mongoose.connection.db) throw new AppError(500, 'DB_ERROR', 'Database not initialized appropriately.');
+    aggregationPipeline.push({ $group: groupStage });
 
-    const result = await mongoose.connection.db.collection(token.collection).aggregate([
-      { $match: Object.keys(finalMatch).length > 0 ? finalMatch : {} },
-      { $group: groupStage }
-    ]).toArray();
+    if (!mongoose.connection.db) {
+      throw new AppError(500, 'DB_ERROR', 'Database connection not available.');
+    }
 
-    return result.length > 0 ? (result[0].val || 0) : 0;
+    const result = await mongoose.connection.db.collection(queryCollection).aggregate(aggregationPipeline).toArray();
+
+    return result.length > 0 ? (result[0].val ?? 0) : 0;
   }
 
+  /**
+   * Evaluates a full formula expression by parsing tokens, evaluating each one,
+   * substituting results, then evaluating the arithmetic expression.
+   */
   static async previewFormula(formula: string, userId: string): Promise<number> {
     const tokens = await this.validateSyntax(formula);
     let evaluationString = formula;
-    
+
     for (const token of tokens) {
       const val = await this.evaluateToken(token, userId);
       evaluationString = evaluationString.replace(token.raw, val.toString());
@@ -88,10 +212,13 @@ export class MetricService {
     const sanitized = evaluationString.replace(/[^0-9+\-*/(). ]/g, '');
     try {
       const result = new Function('return ' + sanitized)();
-      if (typeof result !== 'number' || isNaN(result)) throw new Error('Math failure');
+      if (typeof result !== 'number' || isNaN(result)) {
+        throw new Error('Result is not a valid number');
+      }
       return result;
-    } catch (e) {
-      throw new AppError(400, 'FORMULA_ERROR', 'Arithmetic evaluation failed syntactically globally cleanly.');
+    } catch {
+      throw new AppError(400, 'FORMULA_ERROR', 
+        'Arithmetic evaluation failed. Check the formula syntax around operators and parentheses.');
     }
   }
 }

@@ -13,6 +13,13 @@ export const getCollections = async (req: Request, res: Response, next: NextFunc
   } catch (err) { next(err); }
 };
 
+export const getDictionary = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const dictionary = await CatalogService.getDictionary(req.user._id);
+    sendSuccess(res, 200, dictionary);
+  } catch (err) { next(err); }
+};
+
 export const getCollectionById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await CatalogService.getPermittedCollectionById(req.user._id, req.params.id, req.query.search as string);

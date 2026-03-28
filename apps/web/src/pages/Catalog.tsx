@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { Search, Edit3, X, Key, Hash, ChevronDown, ArrowLeft, Sparkles, Tag as TagIcon, Database, Activity, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Search, Edit3, X, Key, Hash, ChevronDown, ArrowLeft, Sparkles, Tag as TagIcon, Database, Activity, Plus, Trash2, RefreshCw, BookOpen } from 'lucide-react';
+import { FormulaGuide } from '../components/FormulaGuide';
 
 export default function Catalog() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -11,6 +12,7 @@ export default function Catalog() {
   const [selectedField, setSelectedField] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, type: 'collection' | 'field', name: string } | null>(null);
   const [collapsedModules, setCollapsedModules] = useState<string[]>([]);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const toggleModule = (mod: string) => setCollapsedModules(prev => prev.includes(mod) ? prev.filter(m => m !== mod) : [...prev, mod]);
 
@@ -314,9 +316,14 @@ export default function Catalog() {
 
          {!isLoading && selectedField && (
             <div className="max-w-4xl space-y-6 animate-in slide-in-from-right-8 duration-300">
-               <button onClick={() => setSelectedField(null)} className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors mb-6">
-                 <ArrowLeft size={16} /> Back to `{collectionDetail?.displayName}`
-               </button>
+               <div className="flex justify-between items-center mb-6">
+                 <button onClick={() => setSelectedField(null)} className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors">
+                   <ArrowLeft size={16} /> Back to `{collectionDetail?.displayName}`
+                 </button>
+                 <button onClick={() => setIsGuideOpen(true)} className="flex items-center gap-2 text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-100 shadow-sm">
+                   <BookOpen size={14} /> View Formula Guide
+                 </button>
+               </div>
                
                <div className="flex justify-between items-start pb-6 border-b border-slate-200">
                   <div>
@@ -515,6 +522,8 @@ export default function Catalog() {
           </div>
         </div>
       )}
+
+      <FormulaGuide isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </div>
   )
 }

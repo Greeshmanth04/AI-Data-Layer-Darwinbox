@@ -7,7 +7,7 @@ import { ActivityService } from '../services/activity.service';
 
 export const getMetrics = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const metrics = await MetricDefinition.find().lean();
+    const metrics = await MetricDefinition.find().sort({ category: 1, name: 1 }).lean();
     sendSuccess(res, 200, metrics);
   } catch (err) { next(err); }
 };
@@ -33,7 +33,8 @@ export const updateMetric = async (req: Request, res: Response, next: NextFuncti
 
 export const deleteMetric = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await MetricDefinition.findByIdAndDelete(req.params.id);
+    const metric = await MetricDefinition.findByIdAndDelete(req.params.id);
+    if (!metric) throw new AppError(404, 'NOT_FOUND', 'Metric not found');
     await ActivityService.logActivity(req.user._id, 'DELETED_METRIC', req.params.id);
     sendSuccess(res, 200, null, 'Deleted successfully');
   } catch (err) { next(err); }
@@ -50,11 +51,16 @@ export const previewMetricId = async (req: Request, res: Response, next: NextFun
   try {
     const metric = await MetricDefinition.findById(req.params.id);
     if (!metric) throw new AppError(404, 'NOT_FOUND', 'Metric not found');
-    
+
     const result = await MetricService.previewFormula(metric.formula, req.user._id);
-    
+
+    // Update preview history (keep last 5)
     metric.previews.unshift({ result, evaluatedBy: req.user._id, evaluatedAt: new Date() });
-    if (metric.previews.length > 5) metric.previews.pop();
+    if (metric.previews.length > 5) metric.previews = metric.previews.slice(0, 5);
+
+    // Cache latest computed value
+    metric.lastComputedValue = result;
+    metric.lastComputedAt = new Date();
     await metric.save();
 
     await ActivityService.logActivity(req.user._id, 'PREVIEWED_METRIC', metric.name);

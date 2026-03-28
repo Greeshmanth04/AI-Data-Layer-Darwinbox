@@ -6,7 +6,7 @@ import {
 import { authenticateUser } from '../../middleware/auth';
 import { requireRole } from '../../middleware/requireRole';
 import { validateRequest } from '../../middleware/validate';
-import { metricSchema, metricFormulaSchema } from '../../validators/metric.validator';
+import { metricSchema, metricUpdateSchema, metricFormulaSchema } from '../../validators/metric.validator';
 
 const router = Router();
 
@@ -18,7 +18,7 @@ router.post('/:id/preview', previewMetricId);
 router.post('/:id/validate', validateMetricId);
 
 router.post('/', requireRole(['platform_admin', 'data_steward']), validateRequest(metricSchema), createMetric);
-router.put('/:id', requireRole(['platform_admin', 'data_steward']), validateRequest(metricSchema), updateMetric);
+router.put('/:id', requireRole(['platform_admin', 'data_steward']), validateRequest(metricUpdateSchema), updateMetric);
 router.delete('/:id', requireRole(['platform_admin', 'data_steward']), deleteMetric);
 
 export default router;
