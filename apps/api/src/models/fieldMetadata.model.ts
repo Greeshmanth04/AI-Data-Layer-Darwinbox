@@ -6,6 +6,7 @@ export interface IFieldMetadata extends Document {
   displayName: string;
   type: string;
   isCustom: boolean;
+  isForeignKey: boolean;
   aiDescription?: string;
   manualDescription?: string;
   tags: string[];
@@ -17,6 +18,7 @@ const FieldMetadataSchema = new Schema<IFieldMetadata>({
   displayName: { type: String, required: true },
   type: { type: String, required: true },
   isCustom: { type: Boolean, default: false },
+  isForeignKey: { type: Boolean, default: false },
   aiDescription: { type: String },
   manualDescription: { type: String },
   tags: { type: [String], default: [] }

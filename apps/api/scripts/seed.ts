@@ -69,13 +69,21 @@ async function seed() {
          { name: 'title', type: 'string', isCustom: false }
       ]},
       { name: 'offers', displayName: 'Offers', module: 'RECRUITMENT', description: 'Accepted offer letters strictly.', fields: []},
-      { name: 'leave', displayName: 'Leave', module: 'TIME', description: 'Time-off requests globally.', fields: []},
-      { name: 'attendance', displayName: 'Attendance', module: 'TIME', description: 'Clock-in logs safely.', fields: [
-         { name: 'employee_id', type: 'string', isCustom: false },
-         { name: 'date', type: 'string', isCustom: false },
-         { name: 'hours', type: 'number', isCustom: false }
+      { name: 'leave', displayName: 'Leave', module: 'TIME', description: 'Time-off requests globally.', fields: [
+         { name: 'leave_id', type: 'string', isCustom: false, isForeignKey: false },
+         { name: 'employee_id', type: 'string', isCustom: false, isForeignKey: true },
+         { name: 'days', type: 'number', isCustom: false, isForeignKey: false }
       ]},
-      { name: 'payroll', displayName: 'Payroll', module: 'PAYROLL', description: 'Compensation ledgers strictly.', fields: []}
+      { name: 'attendance', displayName: 'Attendance', module: 'TIME', description: 'Clock-in logs safely.', fields: [
+         { name: 'employee_id', type: 'string', isCustom: false, isForeignKey: true },
+         { name: 'date', type: 'string', isCustom: false, isForeignKey: false },
+         { name: 'hours', type: 'number', isCustom: false, isForeignKey: false }
+      ]},
+      { name: 'payroll', displayName: 'Payroll', module: 'PAYROLL', description: 'Compensation ledgers strictly.', fields: [
+         { name: 'pay_id', type: 'string', isCustom: false, isForeignKey: false },
+         { name: 'employee_id', type: 'string', isCustom: false, isForeignKey: true },
+         { name: 'amount', type: 'number', isCustom: false, isForeignKey: false }
+      ]}
     ];
 
     for (const c of collectionsToSeed) {
@@ -87,6 +95,7 @@ async function seed() {
             displayName: f.name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
             type: f.type,
             isCustom: f.isCustom,
+            isForeignKey: (f as any).isForeignKey || false,
             aiDescription: `Extracted ${f.name} attribute natively`,
             manualDescription: (f as any).manualDescription || undefined,
             tags: f.isCustom ? ['Custom'] : ['Standard']

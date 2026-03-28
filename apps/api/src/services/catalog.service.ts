@@ -20,8 +20,10 @@ export class CatalogService {
           if (allowed.length > 0 && !allowed.includes(f.name)) return false;
           return true;
         }).length;
+        const db = (FieldMetadata.db as any).db;
+        const estimatedRecords = db ? await db.collection(coll.name).estimatedDocumentCount().catch(() => 0) : 0;
         
-        permitted.push({ ...coll, fieldCount: permittedCount });
+        permitted.push({ ...coll, fieldCount: permittedCount, estimatedRecords });
       }
     }
 

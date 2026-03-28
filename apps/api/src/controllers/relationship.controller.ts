@@ -39,7 +39,7 @@ export const deleteRelationship = async (req: Request, res: Response, next: Next
 
 export const autoDetect = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const count = await RelationshipService.autoDetect(req.user._id);
-    sendSuccess(res, 200, { detectedEdges: count });
+    const detectedEdges = await RelationshipService.autoDetect(req.user._id);
+    sendSuccess(res, 200, { detectedEdges });
   } catch (err) { next(err); }
 };

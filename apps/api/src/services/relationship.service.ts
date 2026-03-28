@@ -45,14 +45,16 @@ export class RelationshipService {
   static async autoDetect(userId: string) {
     const collections = await CollectionMetadata.find().lean();
     const fields = await FieldMetadata.find().lean();
-    let detectedCount = 0;
+    const detectedEdges = [];
 
     for (const field of fields) {
       const sourceColl = collections.find(c => c._id.toString() === field.collectionId.toString());
       if (!sourceColl) continue;
 
-      if (field.name.endsWith('Id')) {
-        const potentialTargetSingular = field.name.slice(0, -2).toLowerCase();
+      if (field.isForeignKey) {
+        // e.g. employee_id -> employee
+        const baseName = field.name.replace(/_id$/i, '').replace(/Id$/i, '');
+        const potentialTargetSingular = baseName.toLowerCase();
         
         const targetColl = collections.find(c => 
           c.name.toLowerCase() === potentialTargetSingular + 's' || 
@@ -68,7 +70,7 @@ export class RelationshipService {
           });
 
           if (!exists) {
-            await Relationship.create({
+            const edge = await Relationship.create({
               sourceCollection: sourceColl.name,
               targetCollection: targetColl.name,
               sourceField: field.name,
@@ -76,13 +78,13 @@ export class RelationshipService {
               relationshipType: '1:N',
               isAutoDetected: true
             });
-            detectedCount++;
+            detectedEdges.push(edge);
           }
         }
       }
     }
 
-    await ActivityService.logActivity(userId, 'AUTODETECT_GRAPH', `Found ${detectedCount} edges`);
-    return detectedCount;
+    await ActivityService.logActivity(userId, 'AUTODETECT_GRAPH', `Found ${detectedEdges.length} edges`);
+    return detectedEdges;
   }
 }
