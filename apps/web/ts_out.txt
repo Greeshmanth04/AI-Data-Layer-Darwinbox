@@ -1,0 +1,7 @@
+src/App.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/layout/Sidebar.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/layout/Topbar.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/pages/ComingSoon.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/pages/Dashboard.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/pages/GraphMapper.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/Login.tsx(1,8): error TS6133: 'React' is declared but its value is never read.

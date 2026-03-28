@@ -461,7 +461,8 @@ export default function AccessControl() {
                 <ShieldCheck size={14} className="text-indigo-500" /> {selectedUser.role.replace('_', ' ')}
             </div>
          </div>
-         <div className="p-8 max-w-lg mx-auto w-full space-y-8">
+         <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
+           <div className="max-w-lg mx-auto w-full space-y-8">
             <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm">
                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Platform Role Assignment</label>
                <select 
@@ -507,6 +508,7 @@ export default function AccessControl() {
                  )}
                </div>
             </div>
+         </div>
          </div>
       </div>
     );

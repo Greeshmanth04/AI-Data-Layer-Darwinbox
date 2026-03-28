@@ -22,7 +22,7 @@ const AuthenticatedApp = () => {
        <div className="flex-1 flex flex-col h-full overflow-hidden">
          <Topbar />
          <main className="flex-1 overflow-hidden bg-white">
-           {activeTab === 'dashboard' && <Dashboard />}
+           {activeTab === 'dashboard' && <Dashboard onNavigate={setActiveTab} />}
            {activeTab === 'catalog' && <Catalog />}
            {activeTab === 'relationships' && <GraphMapper />}
            {activeTab === 'metrics' && <Metrics />}
