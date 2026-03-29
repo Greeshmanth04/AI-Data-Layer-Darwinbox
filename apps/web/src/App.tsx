@@ -15,12 +15,13 @@ const queryClient = new QueryClient();
 
 const AuthenticatedApp = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
     <div className="flex h-screen bg-white font-sans overflow-hidden">
-       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isSidebarOpen={isSidebarOpen} />
        <div className="flex-1 flex flex-col h-full overflow-hidden">
-         <Topbar />
+         <Topbar isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
          <main className="flex-1 overflow-hidden bg-white">
            {activeTab === 'dashboard' && <Dashboard onNavigate={setActiveTab} />}
            {activeTab === 'catalog' && <Catalog onNavigate={setActiveTab} />}

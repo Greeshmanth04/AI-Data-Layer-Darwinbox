@@ -41,7 +41,8 @@ const metadata = [
     { fieldName: 'designation', dataType: 'string', isPrimaryKey: false, isCustom: true },
     { fieldName: 'region', dataType: 'string', isPrimaryKey: false, isCustom: true },
     { fieldName: 'manager_id', dataType: 'string', isPrimaryKey: false, isForeignKey: true, isCustom: false },
-    { fieldName: 'position_id', dataType: 'string', isPrimaryKey: false, isForeignKey: true, isCustom: false }
+    { fieldName: 'position_id', dataType: 'string', isPrimaryKey: false, isForeignKey: true, isCustom: false },
+    { fieldName: 'salary', dataType: 'number', isPrimaryKey: false, isCustom: true }
   ]},
   { slug: 'positions', name: 'Positions', module: 'Core', description: 'Available roles inside the organization', fields: [
     { fieldName: 'position_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
@@ -190,7 +191,8 @@ async function seed() {
     designation: positions[i].title,
     region: positions[i].location,
     manager_id: i > 0 ? `EMP-001` : null,
-    position_id: positions[i].position_id
+    position_id: positions[i].position_id,
+    salary: 50000 + (i * 2000)
   }));
   for (const emp of employees) {
     await upsert(db, 'employees', { employee_id: emp.employee_id }, emp);
@@ -307,54 +309,107 @@ async function seed() {
     });
   }
 
-  // 5. Users and userGroups Seed
-  console.log('🛡️ Seeding Users & _userGroups_ strictly to PRD schema...');
+  // 5. Security & Access Control (PRD 11.7 Seed Permission Groups)
+  console.log('🛡️ Seeding PRD 11.7 mandatory Permission Groups...');
   const pwd = await bcrypt.hash('darwinbox123', 10);
   
   // Create Groups
-  const hrPerms = [
-    { collectionId: genId('COLL_employees'), canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] },
-    { collectionId: genId('COLL_payroll'), canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] },
-    { collectionId: genId('COLL_positions'), canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] },
-    { collectionId: genId('COLL_leave'), canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] },
-    { collectionId: genId('COLL_attendance'), canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] },
-    { collectionId: genId('COLL_offers'), canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] }
+  const hrPerms = metadata.map(m => ({
+    collectionName: m.name, 
+    canRead: true, 
+    allowedFields: [], 
+    deniedFields: [], 
+    rowFilters: [] 
+  }));
+  
+  await upsert(db, 'groups', { name: 'HR Admins' }, {
+    _id: genId('G_HR'), 
+    name: 'HR Admins', 
+    description: 'Full data access across all HR modules', 
+    permissions: hrPerms
+  });
+
+  const payrollPerms = [
+    { 
+      collectionName: 'Employees', 
+      canRead: true, 
+      allowedFields: [], 
+      deniedFields: ['salary'], 
+      rowFilters: [] 
+    },
+    { 
+      collectionName: 'Payroll', 
+      canRead: true, 
+      allowedFields: [], 
+      deniedFields: [], 
+      rowFilters: [] 
+    }
   ];
-  const hrGroupRes = await upsert(db, 'userGroups', { name: 'HR Admins' }, {
-    _id: genId('G_HR'), name: 'HR Admins', description: 'Access all Core Data', members: [genId('U_hr')], permissions: hrPerms
+  
+  await upsert(db, 'groups', { name: 'Payroll Team' }, {
+    _id: genId('G_PAY'), 
+    name: 'Payroll Team', 
+    description: 'Sensitive employee data masked, full payroll control', 
+    permissions: payrollPerms
   });
 
-  const payPerms = [
-    { collectionId: genId('COLL_employees'), canRead: true, allowedFields: [], deniedFields: ['salary'], rowFilters: [] },
-    { collectionId: genId('COLL_payroll'), canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] }
+  const regionalPerms = [
+    { 
+      collectionName: 'Employees', 
+      canRead: true, 
+      allowedFields: [], 
+      deniedFields: ['salary', 'designation', 'manager_id'], 
+      rowFilters: [{ field: 'region', operator: 'eq', value: 'South' }] 
+    },
+    { 
+      collectionName: 'Leave', 
+      canRead: true, 
+      allowedFields: [], 
+      deniedFields: [], 
+      rowFilters: [] 
+    }
   ];
-  const payGroupRes = await upsert(db, 'userGroups', { name: 'Payroll Team' }, {
-    _id: genId('G_Pay'), name: 'Payroll Team', description: 'Hide Employee Salary, Full Payroll', members: [genId('U_payroll')], permissions: payPerms
+  
+  await upsert(db, 'groups', { name: 'Regional Viewer' }, {
+    _id: genId('G_REGIONAL'), 
+    name: 'Regional Viewer', 
+    description: 'South Branch Context Only with mandatory masking', 
+    permissions: regionalPerms
   });
 
-  const regPerms = [
-    { collectionId: genId('COLL_employees'), canRead: true, allowedFields: [], deniedFields: ['salary', 'designation', 'manager_id'], rowFilters: [{ field: 'region', operator: 'eq', value: 'South' }] },
-    { collectionId: genId('COLL_leave'), canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] }
+  // Create PRD-mandated Users
+  const userSeeds = [
+    { _id: genId('U_ADMIN'), email: 'admin@darwinbox.io', name: 'System Admin', role: 'platform_admin', status: 'active' },
+    { _id: genId('U_HR'), email: 'hr@darwinbox.io', name: 'Lead Steward', role: 'data_steward', status: 'active', groups: ['G_HR'] },
+    { _id: genId('U_PAYROLL'), email: 'analyst@darwinbox.io', name: 'Payroll Lead', role: 'analyst', status: 'active', groups: ['G_PAY'] },
+    { _id: genId('U_SOUTH'), email: 'south@darwinbox.io', name: 'South Branch Viewer', role: 'viewer', status: 'active', groups: ['G_REGIONAL'] },
   ];
-  const regGroupRes = await upsert(db, 'userGroups', { name: 'Regional Viewer' }, {
-    _id: genId('G_Reg'), name: 'Regional Viewer', description: 'South Branch Context Only', members: [genId('U_south')], permissions: regPerms
-  });
 
-  // Create Users
-  await upsert(db, 'users', { email: 'admin@darwinbox.io' }, {
-    _id: genId('U_admin'), email: 'admin@darwinbox.io', name: 'Platform Admin', role: 'platform_admin', status: 'active', groupIds: [], passwordHash: pwd, createdAt: new Date()
-  });
-  await upsert(db, 'users', { email: 'hr@darwinbox.io' }, {
-    _id: genId('U_hr'), email: 'hr@darwinbox.io', name: 'HR Data Steward', role: 'data_steward', status: 'active', groupIds: [hrGroupRes?.value?._id ?? genId('G_HR')], passwordHash: pwd, createdAt: new Date()
-  });
-  await upsert(db, 'users', { email: 'analyst@darwinbox.io' }, {
-    _id: genId('U_payroll'), email: 'analyst@darwinbox.io', name: 'Payroll Analyst', role: 'analyst', status: 'active', groupIds: [payGroupRes?.value?._id ?? genId('G_Pay')], passwordHash: pwd, createdAt: new Date()
-  });
-  await upsert(db, 'users', { email: 'south@darwinbox.io' }, {
-    _id: genId('U_south'), email: 'south@darwinbox.io', name: 'South Viewer', role: 'viewer', status: 'active', groupIds: [regGroupRes?.value?._id ?? genId('G_Reg')], passwordHash: pwd, createdAt: new Date()
-  });
+  for (const u of userSeeds) {
+    await upsert(db, 'users', { email: u.email }, {
+      _id: u._id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      status: u.status,
+      passwordHash: pwd,
+      createdAt: new Date()
+    });
 
-  console.log('✅ Entire Idempotent Seed Complete against native MongoDB collections!');
+    if ((u as any).groups) {
+      // Clear and re-fill UserGroups mapping
+      await db.collection('usergroups').deleteMany({ userId: u._id });
+      for (const gKey of (u as any).groups) {
+        await upsert(db, 'usergroups', { userId: u._id, groupId: genId(gKey) }, {
+          userId: u._id,
+          groupId: genId(gKey),
+          createdAt: new Date()
+        });
+      }
+    }
+  }
+
+  console.log('✅ Entire Idempotent Seed Complete against PRD v1.0 specifications');
   process.exit(0);
 }
 

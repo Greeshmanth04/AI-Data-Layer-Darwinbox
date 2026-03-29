@@ -1,7 +1,7 @@
 import { LayoutDashboard, Database, Share2, Calculator, ShieldCheck, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-export const Sidebar = ({ activeTab, setActiveTab }: any) => {
+export const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen }: any) => {
   const { logout } = useAuth();
   
   const navItems = [
@@ -14,8 +14,8 @@ export const Sidebar = ({ activeTab, setActiveTab }: any) => {
   ];
 
   return (
-    <div className="w-[260px] bg-[#0F172A] text-slate-300 flex flex-col h-full border-r border-slate-800 shrink-0">
-      <div className="p-6 border-b border-slate-800 mb-4">
+    <div className={`${isSidebarOpen ? 'w-[260px]' : 'w-0'} bg-[#0F172A] text-slate-300 flex flex-col h-full border-r border-slate-800 shrink-0 transition-all duration-300 ease-in-out overflow-hidden`}>
+      <div className="p-6 border-b border-slate-800 mb-4 min-w-[260px]">
          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-3">
            <div className="bg-indigo-500/20 p-2 rounded-lg">
              <Database className="text-indigo-400" size={20} />
@@ -27,7 +27,7 @@ export const Sidebar = ({ activeTab, setActiveTab }: any) => {
       
       <div className="px-5 text-xs font-semibold text-slate-500 mb-3 mt-2 uppercase tracking-wider">Platform Modules</div>
       
-      <nav className="flex-1 px-3 space-y-1">
+      <nav className="flex-1 px-3 space-y-1 min-w-[260px]">
         {navItems.map(item => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -46,7 +46,7 @@ export const Sidebar = ({ activeTab, setActiveTab }: any) => {
         })}
       </nav>
       
-      <div className="p-6 border-t border-slate-800">
+      <div className="p-6 border-t border-slate-800 min-w-[260px]">
         <button onClick={logout} className="text-xs font-medium text-slate-500 hover:text-white transition w-full text-left">
           Logout Session
         </button>
