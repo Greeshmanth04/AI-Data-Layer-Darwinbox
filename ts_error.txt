@@ -1,0 +1,5 @@
+apps/api/src/config/env.ts(2,8): error TS1192: Module '"C:/Users/grees/OneDrive/Desktop/AI-Data-Layer-Darwinbox/AI-Data-Layer-Darwinbox/node_modules/dotenv/lib/main"' has no default export.
+apps/api/src/config/env.ts(3,8): error TS1259: Module '"path"' can only be default-imported using the 'esModuleInterop' flag
+apps/api/src/scripts/seed.ts(2,8): error TS1192: Module '"C:/Users/grees/OneDrive/Desktop/AI-Data-Layer-Darwinbox/AI-Data-Layer-Darwinbox/node_modules/@types/bcryptjs/index"' has no default export.
+apps/api/src/scripts/seed.ts(132,17): error TS2339: Property 'tags' does not exist on type '{ fieldName: string; dataType: string; isPrimaryKey: boolean; isCustom: boolean; tags: string[]; isForeignKey?: undefined; } | { fieldName: string; dataType: string; isPrimaryKey: boolean; isCustom: boolean; tags?: undefined; isForeignKey?: undefined; } | { ...; } | { ...; } | { ...; } | { ...; }'.
+  Property 'tags' does not exist on type '{ fieldName: string; dataType: string; isPrimaryKey: boolean; isCustom: boolean; isForeignKey?: undefined; }'.

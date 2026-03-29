@@ -117,19 +117,23 @@ async function seed() {
 
     for (const f of group.fields) {
       const fieldId = genId(`FIELD_${group.slug}_${f.fieldName}`);
+      const humanName = f.fieldName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      const entity = group.name.toLowerCase().replace(/s$/, '');
+
       await upsert(db, 'fields', { collectionId: collId, fieldName: f.fieldName }, { 
         _id: fieldId,
         collectionId: collId, 
         fieldName: f.fieldName, 
-        displayName: f.fieldName.replace(/_/g, ' '), 
+        displayName: humanName, 
         dataType: f.dataType, 
         isPrimaryKey: !!f.isPrimaryKey, 
         isForeignKey: !!f.isForeignKey, 
         isCustom: !!f.isCustom,
-        aiDescription: `Semantic auto-description mapping ${f.fieldName}`,
-        manualDescription: f.isCustom ? `Admin-added description for ${f.fieldName}` : null,
+        aiDescription: `The ${f.dataType} value for ${humanName} within the ${entity} record mapping.`,
+        manualDescription: f.isCustom ? `Custom verified description for ${humanName}.` : null,
+        descriptionSource: f.isCustom ? 'manual' : 'ai',
         exampleValues: ['Sample_1', 'Sample_2'],
-        tags: f.tags || ['general']
+        tags: (f as any).tags || ['general']
       });
     }
   }
@@ -310,16 +314,16 @@ async function seed() {
 
   // Create Users
   await upsert(db, 'users', { email: 'admin@darwinbox.io' }, {
-    _id: genId('U_admin'), email: 'admin@darwinbox.io', name: 'Platform Admin', role: 'platform_admin', groupIds: [], passwordHash: pwd, createdAt: new Date()
+    _id: genId('U_admin'), email: 'admin@darwinbox.io', name: 'Platform Admin', role: 'platform_admin', status: 'active', groupIds: [], passwordHash: pwd, createdAt: new Date()
   });
   await upsert(db, 'users', { email: 'hr@darwinbox.io' }, {
-    _id: genId('U_hr'), email: 'hr@darwinbox.io', name: 'HR Data Steward', role: 'data_steward', groupIds: [hrGroupRes.value?._id || genId('G_HR')], passwordHash: pwd, createdAt: new Date()
+    _id: genId('U_hr'), email: 'hr@darwinbox.io', name: 'HR Data Steward', role: 'data_steward', status: 'active', groupIds: [hrGroupRes?.value?._id ?? genId('G_HR')], passwordHash: pwd, createdAt: new Date()
   });
   await upsert(db, 'users', { email: 'analyst@darwinbox.io' }, {
-    _id: genId('U_payroll'), email: 'analyst@darwinbox.io', name: 'Payroll Analyst', role: 'analyst', groupIds: [payGroupRes.value?._id || genId('G_Pay')], passwordHash: pwd, createdAt: new Date()
+    _id: genId('U_payroll'), email: 'analyst@darwinbox.io', name: 'Payroll Analyst', role: 'analyst', status: 'active', groupIds: [payGroupRes?.value?._id ?? genId('G_Pay')], passwordHash: pwd, createdAt: new Date()
   });
   await upsert(db, 'users', { email: 'south@darwinbox.io' }, {
-    _id: genId('U_south'), email: 'south@darwinbox.io', name: 'South Viewer', role: 'viewer', groupIds: [regGroupRes.value?._id || genId('G_Reg')], passwordHash: pwd, createdAt: new Date()
+    _id: genId('U_south'), email: 'south@darwinbox.io', name: 'South Viewer', role: 'viewer', status: 'active', groupIds: [regGroupRes?.value?._id ?? genId('G_Reg')], passwordHash: pwd, createdAt: new Date()
   });
 
   console.log('✅ Entire Idempotent Seed Complete against native MongoDB collections!');

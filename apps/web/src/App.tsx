@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
@@ -34,14 +34,21 @@ const AuthenticatedApp = () => {
   );
 };
 
+import Register from './pages/Register';
+
 const RouterConfig = () => {
   const { isAuthenticated, isLoading } = useAuth();
+  const [authView, setAuthView] = useState<'login' | 'register'>('login');
   
   if (isLoading) {
      return <div className="min-h-screen flex items-center justify-center bg-slate-50 font-bold text-indigo-500 animate-pulse tracking-widest text-sm uppercase">Securely Loading Enterprise Identity Matrix...</div>;
   }
   
-  if (!isAuthenticated) return <Login />;
+  if (!isAuthenticated) {
+     if (authView === 'register') return <Register onNavigateLogin={() => setAuthView('login')} />;
+     return <Login onNavigateRegister={() => setAuthView('register')} />;
+  }
+  
   return <AuthenticatedApp />;
 };
 

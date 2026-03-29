@@ -2,14 +2,15 @@ import { z } from 'zod';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load .env from api directory
+// Load .env from api directory (relative to built dist or src)
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const envSchema = z.object({
   PORT: z.string().default('4000'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   MONGODB_URI: z.string().url(),
-  JWT_SECRET: z.string().min(10)
+  JWT_SECRET: z.string().min(10),
+  GEMINI_API_KEY: z.string().optional()
 });
 
 const parseResult = envSchema.safeParse(process.env);

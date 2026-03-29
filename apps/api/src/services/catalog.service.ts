@@ -1,6 +1,7 @@
 import { CollectionMetadata } from '../models/collectionMetadata.model';
 import { FieldMetadata } from '../models/fieldMetadata.model';
 import { PermissionService } from './permission.service';
+import { LLMService } from './llm.service';
 import { AppError } from '../utils/errors';
 
 export class CatalogService {
@@ -69,10 +70,23 @@ export class CatalogService {
       if (denied.includes(f.name)) return false;
       if (allowed.length > 0 && !allowed.includes(f.name)) return false;
       return true;
-    }).map(f => ({
-      ...f,
-      description: (f as any).manualDescription || (f as any).aiDescription || null
-    }));
+    }).map(f => {
+      const manual = (f as any).manualDescription;
+      const ai = (f as any).aiDescription;
+      let source = (f as any).descriptionSource || 'none';
+      
+      // Self-healing: if source is 'none' but data exists, infer it
+      if (source === 'none') {
+        if (manual) source = 'manual';
+        else if (ai) source = 'ai';
+      }
+
+      return {
+        ...f,
+        description: manual || ai || null,
+        descriptionSource: source,
+      };
+    });
 
     const db = (FieldMetadata.db as any).db;
 
@@ -105,13 +119,33 @@ export class CatalogService {
     // Layer 2: Explicit field-level assertion
     PermissionService.assertFieldsAccessible([field.name], resolved);
 
-    return { ...field, description: (field as any).manualDescription || (field as any).aiDescription || null };
+    const manual = (field as any).manualDescription;
+    const ai = (field as any).aiDescription;
+    let source = (field as any).descriptionSource || 'none';
+
+    if (source === 'none') {
+      if (manual) source = 'manual';
+      else if (ai) source = 'ai';
+    }
+
+    return {
+      ...field,
+      description: manual || ai || null,
+      descriptionSource: source,
+    };
   }
 
-  static generateHeuristicDescription(fieldName: string, collectionName: string): string {
-    const humanized = fieldName.replace(/([A-Z])/g, ' $1').toLowerCase();
-    const cleanColl = collectionName.replace(/s$/, '').toLowerCase();
-    return `The ${humanized} value associated with the ${cleanColl}.`;
+  /**
+   * Generate a description for a single field using the real LLM.
+   * Returns both the description text and the resolved source ('ai' | 'fallback').
+   */
+  static async generateDescription(
+    fieldName: string,
+    collectionName: string,
+    fieldType: string,
+    module: string,
+  ): Promise<{ description: string; source: 'ai' | 'fallback' }> {
+    return LLMService.generateFieldDescription(fieldName, collectionName, fieldType, module);
   }
 
   static async getDictionary(userId: string) {
@@ -141,3 +175,4 @@ export class CatalogService {
     return dictionary;
   }
 }
+

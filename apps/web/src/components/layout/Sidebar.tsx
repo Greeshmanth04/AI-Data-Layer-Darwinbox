@@ -1,4 +1,3 @@
-import React from 'react';
 import { LayoutDashboard, Database, Share2, Calculator, ShieldCheck, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 

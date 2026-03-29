@@ -2,12 +2,11 @@ import { Router } from 'express';
 import { 
   getCollections, getCollectionById, createCollection, updateCollection, deleteCollection,
   getFieldById, updateField, generateFieldDescription, createField, deleteField,
-  getDictionary
+  getDictionary, bulkGenerateDescriptions
 } from '../../controllers/catalog.controller';
 import { validateRequest } from '../../middleware/validate';
 import { authenticateUser } from '../../middleware/auth';
 import { requireRole } from '../../middleware/requireRole';
-import { enforceCollectionAccess, assertFieldAccess } from '../../middleware/enforcePermissions';
 import * as schemas from '../../validators/catalog.validator';
 
 const router = Router();
@@ -30,6 +29,15 @@ router.post('/collections', requireRole(['platform_admin']), validateRequest(sch
 router.put('/collections/:id', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.updateCollectionSchema), updateCollection);
 router.delete('/collections/:id', requireRole(['platform_admin']), deleteCollection);
 
+// ── Field routes ─────────────────────────────────────────────────────────────
+
+// Bulk backfill — must come BEFORE /:id routes to avoid route collision
+router.post(
+  '/fields/bulk-generate-descriptions',
+  requireRole(['platform_admin', 'data_steward']),
+  bulkGenerateDescriptions,
+);
+
 router.post('/fields', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.createFieldSchema), createField);
 
 // Single field read — Layer 1+2 enforced inside getPermittedFieldById
@@ -37,6 +45,8 @@ router.get('/fields/:id', getFieldById);
 
 router.put('/fields/:id', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.updateFieldSchema), updateField);
 router.delete('/fields/:id', requireRole(['platform_admin']), deleteField);
-router.post('/fields/:id/generate-description', requireRole(['platform_admin', 'data_steward']), generateFieldDescription);
+
+// Re-generate description on demand — available to any authenticated user who can view the field
+router.post('/fields/:id/generate-description', generateFieldDescription);
 
 export default router;

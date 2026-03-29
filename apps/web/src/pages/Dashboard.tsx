@@ -1,4 +1,3 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { Database, Layout, ShieldCheck, Calculator, BookOpen, AlertTriangle, Activity, CheckCircle, Clock } from 'lucide-react';

@@ -43,15 +43,22 @@ export const createUserSchema = z.object({
     email: z.string().email(),
     name: z.string().optional(),
     password: z.string().min(6),
-    role: z.enum(['platform_admin', 'data_steward', 'viewer']).default('viewer')
+    role: z.enum(['platform_admin', 'data_steward', 'analyst', 'viewer']).default('viewer')
   })
 });
 
 export const updateUserSchema = z.object({
   params: z.object({ id: z.string() }),
   body: z.object({
-    role: z.enum(['platform_admin', 'data_steward', 'viewer']).optional(),
+    role: z.enum(['platform_admin', 'data_steward', 'analyst', 'viewer']).optional(),
     name: z.string().optional(),
     groupIds: z.array(z.string()).optional()
+  })
+});
+
+export const updateUserStatusSchema = z.object({
+  params: z.object({ id: z.string() }),
+  body: z.object({
+    status: z.enum(['pending', 'active', 'rejected', 'blocked'])
   })
 });

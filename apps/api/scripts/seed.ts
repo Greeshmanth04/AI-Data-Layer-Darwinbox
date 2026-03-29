@@ -31,9 +31,9 @@ async function seed() {
     const hash = await bcrypt.hash('admin123', salt);
 
     const users = await User.insertMany([
-      { email: 'admin@darwinbox.io', passwordHash: hash, role: 'platform_admin' },
-      { email: 'manager@darwinbox.io', passwordHash: hash, role: 'viewer' },
-      { email: 'employee@darwinbox.io', passwordHash: hash, role: 'viewer' }
+      { email: 'admin@darwinbox.io', passwordHash: hash, role: 'platform_admin', status: 'active' },
+      { email: 'manager@darwinbox.io', passwordHash: hash, role: 'viewer', status: 'active' },
+      { email: 'employee@darwinbox.io', passwordHash: hash, role: 'viewer', status: 'active' }
     ]);
 
     console.log('Seeding Groups & Permissions...');

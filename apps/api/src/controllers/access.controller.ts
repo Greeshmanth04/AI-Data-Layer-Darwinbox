@@ -136,3 +136,19 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
     sendSuccess(res, 200, user);
   } catch (error) { next(error); }
 };
+
+export const updateUserStatus = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { status } = req.body;
+    const user = await User.findByIdAndUpdate(req.params.id, { status }, { new: true }).select('-passwordHash').lean();
+    sendSuccess(res, 200, user, `User status updated to ${status}`);
+  } catch (error) { next(error); }
+};
+
+export const deleteUser = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    await UserGroup.deleteMany({ userId: req.params.id });
+    sendSuccess(res, 200, null, 'User deleted successfully');
+  } catch (error) { next(error); }
+};

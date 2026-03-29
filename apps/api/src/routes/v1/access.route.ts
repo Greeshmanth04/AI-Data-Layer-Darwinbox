@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { 
   getGroups, createGroup, updateGroup, deleteGroup,
   updateGroupMembers, getGroupPermissions, updateCollectionPermission, deleteCollectionPermission,
-  getUsers, createUser, updateUser
+  getUsers, createUser, updateUser, updateUserStatus, deleteUser
 } from '../../controllers/access.controller';
 import { validateRequest } from '../../middleware/validate';
 import { authenticateUser } from '../../middleware/auth';
@@ -31,5 +31,7 @@ router.delete('/groups/:id/permissions/:collId', deleteCollectionPermission);
 router.get('/users', getUsers);
 router.post('/users', validateRequest(schemas.createUserSchema), requireRole(['platform_admin']), createUser);
 router.put('/users/:id', validateRequest(schemas.updateUserSchema), updateUser);
+router.put('/users/:id/status', validateRequest(schemas.updateUserStatusSchema), updateUserStatus);
+router.delete('/users/:id', deleteUser);
 
 export default router;

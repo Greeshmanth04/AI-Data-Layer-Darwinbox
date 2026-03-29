@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, Search, Users, Key, Lock, Trash2, Plus, X, UserPlus, Database, Save, Filter } from 'lucide-react';
 
 function FilterValueInput({ initialValue, onSave }: { initialValue: string, onSave: (val: string) => void }) {
@@ -9,6 +10,7 @@ function FilterValueInput({ initialValue, onSave }: { initialValue: string, onSa
 }
 
 export default function AccessControl() {
+  const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'groups' | 'users'>('groups');
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,6 +95,20 @@ export default function AccessControl() {
        setIsManageUserGroupsOpen(false);
     }
   });
+
+  const updateUserStatusMut = useMutation({
+    mutationFn: ({ id, status }: { id: string, status: string }) => apiClient(`/access/users/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['access-users'] })
+  });
+
+  const deleteUserMut = useMutation({
+    mutationFn: (id: string) => apiClient(`/access/users/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['access-users'] });
+      setDeleteConfirm(null);
+      setSelectedUserId(null);
+    }
+  });
   
   const updatePermissionMut = useMutation({
     mutationFn: ({ groupId, collId, data }: { groupId: string, collId: string, data: any }) => 
@@ -144,7 +160,10 @@ export default function AccessControl() {
         ) : (
           filteredUsers.map((u: any) => (
             <button key={u._id} onClick={() => setSelectedUserId(u._id)} className={`w-full text-left p-3 rounded-lg border transition-all ${selectedUserId === u._id ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-transparent hover:border-slate-200 hover:bg-slate-50'}`}>
-               <div className="font-bold text-[13px] text-slate-800 truncate mb-1">{u.email}</div>
+               <div className="flex justify-between items-start mb-1">
+                 <div className="font-bold text-[13px] text-slate-800 truncate">{u.email}</div>
+                 <div className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700' : u.status === 'blocked' ? 'bg-red-100 text-red-700' : u.status === 'rejected' ? 'bg-slate-200 text-slate-500' : 'bg-orange-100 text-orange-700'}`}>{u.status || 'active'}</div>
+               </div>
                <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-500 mt-2">
                  <span className="px-1.5 py-0.5 rounded bg-slate-100">{u.role.replace('_', ' ')}</span>
                  <span className="flex items-center gap-1"><Users size={12}/> {u.groupIds?.length || 0} Groups</span>
@@ -450,6 +469,7 @@ export default function AccessControl() {
 
   const renderUserDetail = () => {
     if (!selectedUser) return null;
+    const isSelf = currentUser?.id === selectedUser._id;
     return (
       <div className="flex-1 flex flex-col bg-white overflow-hidden animate-in fade-in slide-in-from-right-8 duration-300">
          <div className="px-8 py-10 border-b border-slate-200 text-center">
@@ -463,20 +483,53 @@ export default function AccessControl() {
          </div>
          <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
            <div className="max-w-lg mx-auto w-full space-y-8">
+
+            <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm">
+               <div className="flex justify-between items-center mb-4">
+                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Platform Access Lifecycle</label>
+                 <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${selectedUser.status === 'active' ? 'bg-emerald-100 text-emerald-700' : selectedUser.status === 'blocked' ? 'bg-red-100 text-red-700' : selectedUser.status === 'rejected' ? 'bg-slate-200 text-slate-500' : 'bg-orange-100 text-orange-700'}`}>{selectedUser.status || 'active'}</span>
+               </div>
+               
+               {selectedUser.status === 'pending' && (
+                 <div className="flex gap-3 mt-4">
+                   <button onClick={() => updateUserStatusMut.mutate({ id: selectedUser._id, status: 'active' })} disabled={updateUserStatusMut.isPending} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-sm transition-colors shadow-sm">Approve Access</button>
+                   <button onClick={() => updateUserStatusMut.mutate({ id: selectedUser._id, status: 'rejected' })} disabled={updateUserStatusMut.isPending} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-lg text-sm transition-colors">Reject Request</button>
+                 </div>
+               )}
+
+               {selectedUser.status === 'active' && (
+                 <div className="mt-4 border-t border-slate-100 pt-4">
+                   <p className="text-[11px] text-slate-500 leading-relaxed mb-3">Active users can be temporarily blocked to instantly revoke platform access without deleting their account matrix.</p>
+                   {isSelf ? (
+                      <p className="text-xs font-bold text-slate-400 italic bg-slate-50 p-2 rounded text-center">You cannot block your own ongoing session.</p>
+                   ) : (
+                     <button onClick={() => updateUserStatusMut.mutate({ id: selectedUser._id, status: 'blocked' })} disabled={updateUserStatusMut.isPending} className="text-sm font-bold border border-red-200 text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg transition-colors w-full">Block User</button>
+                   )}
+                 </div>
+               )}
+
+               {(selectedUser.status === 'blocked' || selectedUser.status === 'rejected') && (
+                 <div className="mt-4 border-t border-slate-100 pt-4">
+                   <button onClick={() => updateUserStatusMut.mutate({ id: selectedUser._id, status: 'active' })} disabled={updateUserStatusMut.isPending} className="text-sm font-bold border border-indigo-200 text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors w-full">Restore Access</button>
+                 </div>
+               )}
+            </div>
+
             <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm">
                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Platform Role Assignment</label>
                <select 
-                 className="w-full bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                 className={`w-full bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 ${isSelf ? 'opacity-60 cursor-not-allowed' : ''}`}
                  value={selectedUser.role}
+                 disabled={isSelf}
                  onChange={(e) => updateUserRoleMut.mutate({ id: selectedUser._id, role: e.target.value })}
                >
                  <option value="platform_admin">Platform Admin (Superuser)</option>
                  <option value="data_steward">Data Steward</option>
                  <option value="analyst">Analyst</option>
-                 <option value="base_user">Base User</option>
+                 <option value="viewer">Viewer</option>
                </select>
                <p className="mt-3 text-[11px] font-medium text-slate-500 leading-relaxed">
-                 Updating this overrides native inherited controls globally. Base users require group authorizations to read anything.
+                 Updating this overrides native inherited controls globally. Viewers require group authorizations to read anything.
                </p>
             </div>
 
@@ -505,8 +558,18 @@ export default function AccessControl() {
                        <p className="text-xs font-medium text-slate-400">User is not assigned to any specific governance group.</p>
                        <p className="text-[10px] text-slate-400 mt-1">Assign them from the Groups panel.</p>
                     </div>
-                 )}
+                  )}
                </div>
+            </div>
+
+            <div className={`bg-white border p-6 rounded-xl shadow-sm border-dashed ${isSelf ? 'border-slate-200' : 'border-red-200'}`}>
+               <label className={`block text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5 ${isSelf ? 'text-slate-500' : 'text-red-500'}`}><Trash2 size={12}/> Danger Zone</label>
+               <p className="text-[11px] font-medium text-slate-500 leading-relaxed mb-4">Deleting a user irreversibly wipes their complete permission matrix and login credentials.</p>
+               {isSelf ? (
+                 <button disabled className="w-full text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 px-4 py-2 rounded-lg cursor-not-allowed">Cannot Delete Own Account</button>
+               ) : (
+                 <button onClick={() => setDeleteConfirm(selectedUser._id)} className="w-full text-xs font-bold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-100 px-4 py-2 rounded-lg transition-colors">Delete Account</button>
+               )}
             </div>
          </div>
          </div>
@@ -555,13 +618,16 @@ export default function AccessControl() {
       {deleteConfirm && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-2xl w-96 shadow-xl animate-in fade-in zoom-in-95 duration-200">
-            <h2 className="text-lg font-bold mb-2 text-slate-900 flex items-center gap-2"><Trash2 size={18} className="text-red-500"/> Delete Group?</h2>
+            <h2 className="text-lg font-bold mb-2 text-slate-900 flex items-center gap-2"><Trash2 size={18} className="text-red-500"/> Delete Entity?</h2>
             <p className="text-sm text-slate-500 mb-6 font-medium leading-relaxed">
-              Are you sure you want to delete this security group? All explicit permissions will be instantly revoked.
+              Are you sure you want to delete this {selectedGroup ? 'security group' : 'user account'}? All explicit configurations will be irreversibly wiped.
             </p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm text-slate-500 font-bold hover:bg-slate-50 rounded-lg">Cancel</button>
-              <button onClick={() => deleteGroupMut.mutate(deleteConfirm)} disabled={deleteGroupMut.isPending} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow border border-red-700">
+              <button onClick={() => {
+                if (selectedGroup) deleteGroupMut.mutate(deleteConfirm);
+                else if (selectedUser) deleteUserMut.mutate(deleteConfirm);
+              }} disabled={deleteGroupMut.isPending || deleteUserMut.isPending} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow border border-red-700">
                 Yes, Delete
               </button>
             </div>

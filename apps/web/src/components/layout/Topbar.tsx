@@ -1,4 +1,3 @@
-import React from 'react';
 import { Columns } from 'lucide-react';
 
 export const Topbar = () => {

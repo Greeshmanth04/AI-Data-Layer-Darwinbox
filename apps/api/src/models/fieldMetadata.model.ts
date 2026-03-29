@@ -9,6 +9,7 @@ export interface IFieldMetadata extends Document {
   isForeignKey: boolean;
   aiDescription?: string;
   manualDescription?: string;
+  descriptionSource: 'ai' | 'manual' | 'none';
   tags: string[];
 }
 
@@ -21,6 +22,7 @@ const FieldMetadataSchema = new Schema<IFieldMetadata>({
   isForeignKey: { type: Boolean, default: false },
   aiDescription: { type: String },
   manualDescription: { type: String },
+  descriptionSource: { type: String, enum: ['ai', 'manual', 'none'], default: 'none' },
   tags: { type: [String], default: [] }
 }, { timestamps: true });
 

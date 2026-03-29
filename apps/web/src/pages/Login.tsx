@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Database, Lock, Mail } from 'lucide-react';
 
-export default function Login() {
+interface LoginProps {
+  onNavigateRegister?: () => void;
+}
+
+export default function Login({ onNavigateRegister }: LoginProps) {
   const { login } = useAuth();
   const [email, setEmail] = useState('admin@darwinbox.io');
   const [password, setPassword] = useState('admin123');
@@ -62,6 +66,15 @@ export default function Login() {
             {loading ? 'Authenticating...' : 'Sign In securely'}
           </button>
         </form>
+
+        {onNavigateRegister && (
+          <div className="mt-8 text-center bg-slate-50 rounded-lg p-3 border border-slate-100">
+             <p className="text-xs text-slate-500 font-medium tracking-wide">
+               Don't have access?{' '}
+               <button onClick={onNavigateRegister} type="button" className="text-indigo-600 font-bold hover:text-indigo-800 transition-colors">Request Account</button>
+             </p>
+          </div>
+        )}
       </div>
     </div>
   );
