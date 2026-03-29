@@ -51,7 +51,8 @@ export class RelationshipService {
       const sourceColl = collections.find(c => c._id.toString() === field.collectionId.toString());
       if (!sourceColl) continue;
 
-      if (field.isForeignKey) {
+      // Auto-identify fields that look like IDs and aren't already foreign keys
+      if (!field.isPrimaryKey && field.name.toLowerCase().endsWith('id') && !field.isForeignKey) {
         // e.g. employee_id -> employee
         const baseName = field.name.replace(/_id$/i, '').replace(/Id$/i, '');
         const potentialTargetSingular = baseName.toLowerCase();
@@ -62,11 +63,13 @@ export class RelationshipService {
         );
 
         if (targetColl && targetColl.name !== sourceColl.name) {
+          // Attempt to find the target's primary key name, or default to generic '_id' (wait, usually PRD uses specific IDs)
+          const pkField = fields.find(f => f.collectionId.toString() === targetColl._id.toString() && f.isPrimaryKey);
+          const targetFieldName = pkField ? pkField.name : '_id';
+
           const exists = await Relationship.exists({
             sourceCollection: sourceColl.name,
-            targetCollection: targetColl.name,
-            sourceField: field.name,
-            targetField: '_id' 
+            sourceField: field.name
           });
 
           if (!exists) {
@@ -74,9 +77,10 @@ export class RelationshipService {
               sourceCollection: sourceColl.name,
               targetCollection: targetColl.name,
               sourceField: field.name,
-              targetField: '_id',
+              targetField: targetFieldName,
               relationshipType: '1:N',
-              isAutoDetected: true
+              isAutoDetected: true,
+              label: `${sourceColl.name}.${field.name} → ${targetColl.name}.${targetFieldName}`
             });
             detectedEdges.push(edge);
           }

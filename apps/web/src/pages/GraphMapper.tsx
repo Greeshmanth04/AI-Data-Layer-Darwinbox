@@ -396,12 +396,12 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
           {selectedEdge && finalEdges.find((e: any) => e.id === selectedEdge)?.data && (() => {
             const rel = finalEdges.find((e: any) => e.id === selectedEdge)!.data;
             return (
-              <div className="flex flex-col h-full h-full overflow-hidden">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <div className="flex flex-col h-full overflow-hidden">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 flex-shrink-0">
                    <h3 className="font-bold text-gray-800">Edge Properties</h3>
                    <button onClick={() => setSelectedEdge(null)} className="text-gray-400 hover:bg-gray-200 p-1.5 rounded-md transition-colors"><X size={16}/></button>
                 </div>
-                <div className="p-6 space-y-5 text-[13px] flex-1">
+                <div className="p-6 space-y-5 text-[13px] flex-1 overflow-y-auto">
                   {onNavigate && (
                       <button onClick={() => onNavigate('catalog')} className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-3 focus:outline-none transition-colors rounded border border-indigo-200 text-xs">
                           View in Data Catalog
@@ -432,7 +432,7 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
                     </span>
                   </div>
                 </div>
-                <div className="p-6 flex gap-2 border-t border-gray-100 bg-gray-50/50">
+                <div className="p-6 flex gap-2 border-t border-gray-100 bg-gray-50/50 flex-shrink-0">
                   <button onClick={() => { setEdgeForm({ sourceCollection: rel.sourceCollection, targetCollection: rel.targetCollection, sourceField: rel.sourceField, targetField: rel.targetField, relationshipType: rel.relationshipType, label: rel.label || '' }); setShowEditForm(true); }} className="flex-1 flex items-center justify-center gap-2 bg-white text-gray-700 hover:bg-gray-50 py-2.5 rounded-lg transition-colors border border-gray-200 shadow-sm font-semibold text-[13px]">
                     Edit Connection
                   </button>
