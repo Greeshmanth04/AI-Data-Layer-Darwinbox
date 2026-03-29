@@ -13,9 +13,13 @@ const genId = (seed: string): mongoose.Types.ObjectId => {
 };
 
 const upsert = async (db: mongoose.mongo.Db, collName: string, filter: any, doc: any) => {
+  const { _id, ...updateDoc } = doc;
+  const update: any = { $set: updateDoc };
+  if (_id) update.$setOnInsert = { _id };
+
   return await db.collection(collName).findOneAndUpdate(
     filter, 
-    { $set: doc }, 
+    update, 
     { upsert: true, returnDocument: 'after' }
   );
 };
@@ -104,13 +108,12 @@ async function seed() {
   console.log('📦 Seeding PRD standard Collections & Fields...');
   for (const group of metadata) {
     const collId = genId(`COLL_${group.slug}`);
-    await upsert(db, 'collections', { slug: group.slug }, {
+    await upsert(db, 'collectionmetadatas', { name: group.name }, {
       _id: collId,
-      slug: group.slug,
       name: group.name,
+      displayName: group.name,
       module: group.module,
       description: group.description,
-      recordCount: 20,
       createdAt: new Date(),
       updatedAt: new Date()
     });
@@ -120,19 +123,41 @@ async function seed() {
       const humanName = f.fieldName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
       const entity = group.name.toLowerCase().replace(/s$/, '');
 
-      await upsert(db, 'fields', { collectionId: collId, fieldName: f.fieldName }, { 
+      // Resolve FK target IDs if applicable
+      let targetCollectionId: mongoose.Types.ObjectId | undefined;
+      let targetFieldId: mongoose.Types.ObjectId | undefined;
+      let relationshipLabel: string | undefined;
+      let relationshipType: string | undefined;
+
+      if (f.isForeignKey) {
+        // Resolve FK targets from the relationship definitions
+        const relMatch = seedRelationships.find(
+          r => r.sCol === group.slug && r.sField === f.fieldName
+        );
+        if (relMatch) {
+          targetCollectionId = genId(`COLL_${relMatch.tCol}`);
+          targetFieldId = genId(`FIELD_${relMatch.tCol}_${relMatch.tField}`);
+          relationshipLabel = relMatch.label;
+          relationshipType = relMatch.type;
+        }
+      }
+
+      await upsert(db, 'fieldmetadatas', { collectionId: collId, name: f.fieldName }, { 
         _id: fieldId,
         collectionId: collId, 
-        fieldName: f.fieldName, 
+        name: f.fieldName, 
         displayName: humanName, 
-        dataType: f.dataType, 
+        type: f.dataType, 
         isPrimaryKey: !!f.isPrimaryKey, 
         isForeignKey: !!f.isForeignKey, 
         isCustom: !!f.isCustom,
+        ...(targetCollectionId ? { targetCollectionId } : {}),
+        ...(targetFieldId ? { targetFieldId } : {}),
+        ...(relationshipLabel ? { relationshipLabel } : {}),
+        ...(relationshipType ? { relationshipType } : {}),
         aiDescription: `The ${f.dataType} value for ${humanName} within the ${entity} record mapping.`,
         manualDescription: f.isCustom ? `Custom verified description for ${humanName}.` : null,
         descriptionSource: f.isCustom ? 'manual' : 'ai',
-        exampleValues: ['Sample_1', 'Sample_2'],
         tags: (f as any).tags || ['general']
       });
     }
@@ -228,31 +253,34 @@ async function seed() {
     await upsert(db, 'payroll', { payroll_id: pay.payroll_id }, pay);
   }
 
-  // 3. Relationships Seed (Idempotent schema per PRD)
-  console.log('🔗 Seeding Relationships strictly to schema...');
-  const rels = [
-    { sCol: 'employees', tCol: 'positions', sField: 'position_id', tField: 'position_id', type: 'many-to-one', label: 'Employee holds Position' },
-    { sCol: 'leave', tCol: 'employees', sField: 'employee_id', tField: 'employee_id', type: 'many-to-one', label: 'Leave for Employee' },
-    { sCol: 'attendance', tCol: 'employees', sField: 'employee_id', tField: 'employee_id', type: 'many-to-one', label: 'Attendance for Employee' },
-    { sCol: 'payroll', tCol: 'employees', sField: 'employee_id', tField: 'employee_id', type: 'many-to-one', label: 'Payroll for Employee' },
-    { sCol: 'offers', tCol: 'positions', sField: 'position_id', tField: 'position_id', type: 'many-to-one', label: 'Offer for Position' },
-    { sCol: 'employees', tCol: 'employees', sField: 'manager_id', tField: 'employee_id', type: 'many-to-one', label: 'Employee to Manager' }
-  ];
-  for (const r of rels) {
-    const rId = genId(`REL_${r.sCol}_${r.tCol}_${r.sField}`);
-    const srcCollId = genId(`COLL_${r.sCol}`);
-    const tgtCollId = genId(`COLL_${r.tCol}`);
-    const srcFid = genId(`FIELD_${r.sCol}_${r.sField}`);
-    const tgtFid = genId(`FIELD_${r.tCol}_${r.tField}`);
-    await upsert(db, 'relationships', { _id: rId }, {
-      _id: rId,
-      sourceCollectionId: srcCollId,
-      sourceFieldId: srcFid,
-      targetCollectionId: tgtCollId,
-      targetFieldId: tgtFid,
+  // 3. Relationships Seed — uses string-based collection/field names (matching Mongoose model)
+  console.log('🔗 Seeding Relationships (string-based, matching Mongoose schema)...');
+  for (const r of seedRelationships) {
+    const collName = metadata.find(m => m.slug === r.sCol)?.name || r.sCol;
+    const targetCollName = metadata.find(m => m.slug === r.tCol)?.name || r.tCol;
+
+    // Map catalog relationship types to Relationship model types
+    const relTypeMap: Record<string, string> = {
+      'many-to-one': 'M:N',
+      'one-to-many': '1:N',
+      'one-to-one': '1:1',
+    };
+
+    await upsert(db, 'relationships', {
+      sourceCollection: collName,
+      targetCollection: targetCollName,
+      sourceField: r.sField,
+      targetField: r.tField,
+    }, {
+      sourceCollection: collName,
+      targetCollection: targetCollName,
+      sourceField: r.sField,
+      targetField: r.tField,
       label: r.label,
-      relationshipType: r.type,
-      isAutoDetected: true
+      relationshipType: relTypeMap[r.type] || '1:N',
+      isAutoDetected: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
   }
 
@@ -329,6 +357,17 @@ async function seed() {
   console.log('✅ Entire Idempotent Seed Complete against native MongoDB collections!');
   process.exit(0);
 }
+
+// Relationship definitions for seed (used both by field FK metadata and relationship records)
+const seedRelationships = [
+  { sCol: 'employees', tCol: 'positions', sField: 'position_id', tField: 'position_id', type: 'many-to-one', label: 'Employee holds Position' },
+  { sCol: 'leave', tCol: 'employees', sField: 'employee_id', tField: 'employee_id', type: 'many-to-one', label: 'Leave for Employee' },
+  { sCol: 'attendance', tCol: 'employees', sField: 'employee_id', tField: 'employee_id', type: 'many-to-one', label: 'Attendance for Employee' },
+  { sCol: 'payroll', tCol: 'employees', sField: 'employee_id', tField: 'employee_id', type: 'many-to-one', label: 'Payroll for Employee' },
+  { sCol: 'offers', tCol: 'positions', sField: 'position_id', tField: 'position_id', type: 'many-to-one', label: 'Offer for Position' },
+  { sCol: 'employees', tCol: 'employees', sField: 'manager_id', tField: 'employee_id', type: 'many-to-one', label: 'Employee to Manager' },
+  { sCol: 'positions', tCol: 'employees', sField: 'hiring_manager_id', tField: 'employee_id', type: 'many-to-one', label: 'Hiring Manager for Position' },
+];
 
 seed().catch(err => {
   console.error('Fatal Seed Error:', err);

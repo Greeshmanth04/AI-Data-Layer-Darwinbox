@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { CatalogService } from '../services/catalog.service';
 import { LLMService } from '../services/llm.service';
+import { SyncService } from '../services/sync.service';
 import { CollectionMetadata } from '../models/collectionMetadata.model';
 import { FieldMetadata } from '../models/fieldMetadata.model';
 import { ActivityService } from '../services/activity.service';
@@ -53,6 +54,10 @@ export const deleteCollection = async (req: Request, res: Response, next: NextFu
   try {
     const coll = await CollectionMetadata.findById(req.params.id);
     if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
+
+    // Cascade: delete relationships and clean FK references in other collections
+    await SyncService.onCollectionDeleted(coll.name);
+
     await FieldMetadata.deleteMany({ collectionId: coll._id });
     await coll.deleteOne();
     await ActivityService.logActivity(req.user._id, 'DELETED_COLLECTION', coll.name);
@@ -73,14 +78,15 @@ export const getFieldById = async (req: Request, res: Response, next: NextFuncti
 
 /**
  * Create a new field and immediately auto-generate an LLM description.
- * - For ALL fields (standard & custom): aiDescription is populated on creation.
- * - descriptionSource is set to 'ai' (or 'fallback' if Gemini is unreachable).
- * - Manual override is ONLY allowed later for custom fields.
+ * Supports PK/FK configuration with bidirectional sync.
  */
 export const createField = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const coll = await CollectionMetadata.findById(req.body.collectionId);
     if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
+
+    // Validate: cannot be both PK and FK
+    SyncService.validateNotBothPkAndFk(req.body.isPrimaryKey, req.body.isForeignKey);
 
     // Auto-derive displayName from field name
     const fieldData = {
@@ -93,6 +99,29 @@ export const createField = async (req: Request, res: Response, next: NextFunctio
 
     const field = await FieldMetadata.create(fieldData);
 
+    // ── PK uniqueness enforcement ──
+    if (field.isPrimaryKey) {
+      await SyncService.enforcePrimaryKeyUniqueness(field.collectionId, field._id);
+    }
+
+    // ── FK → Relationship sync ──
+    if (field.isForeignKey && field.targetCollectionId && field.targetFieldId) {
+      await SyncService.syncFieldToRelationship(field);
+    }
+
+    // ── Initialize the new field to null in all existing documents ──
+    try {
+      const db = (FieldMetadata.db as any).db;
+      if (db) {
+        await db.collection(coll.name).updateMany(
+          { [field.name]: { $exists: false } },
+          { $set: { [field.name]: null } },
+        );
+      }
+    } catch (err) {
+      console.error(`[CatalogController] Failed to initialize field ${field.name} with null:`, err);
+    }
+
     // ── Auto-generate LLM description right after creation ──
     try {
       const { description } = await LLMService.generateFieldDescription(
@@ -102,11 +131,10 @@ export const createField = async (req: Request, res: Response, next: NextFunctio
         coll.module,
       );
       field.aiDescription = description;
-      field.descriptionSource = 'ai'; // Automatically set source to AI for newly generated content
+      field.descriptionSource = 'ai';
       await field.save();
     } catch (err) {
       console.error(`[CatalogController] Initial AI generation failed for ${field.name}:`, err);
-      // Field remains created with missing description; can be backfilled later
     }
 
     await ActivityService.logActivity(req.user._id, 'CREATED_FIELD', field.name);
@@ -120,14 +148,19 @@ export const createField = async (req: Request, res: Response, next: NextFunctio
 
 /**
  * Update field metadata.
- * - descriptionSource tracks whether the active description is AI-generated or manually set.
- * - Manual description override is ONLY permitted for custom fields (isCustom === true).
- * - Standard fields (isCustom === false) cannot have manualDescription set by non-admins.
+ * Handles PK/FK changes with bidirectional sync to Relationship Mapper.
  */
 export const updateField = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const field = await FieldMetadata.findById(req.params.id);
     if (!field) throw new AppError(404, 'NOT_FOUND', 'Field not found');
+
+    // Determine effective PK/FK values after the update
+    const newIsPk = req.body.isPrimaryKey !== undefined ? req.body.isPrimaryKey : field.isPrimaryKey;
+    const newIsFk = req.body.isForeignKey !== undefined ? req.body.isForeignKey : field.isForeignKey;
+
+    // Validate: cannot be both PK and FK
+    SyncService.validateNotBothPkAndFk(newIsPk, newIsFk);
 
     // Guard: only custom fields can have manual descriptions updated
     const hasDescriptionUpdate =
@@ -154,12 +187,41 @@ export const updateField = async (req: Request, res: Response, next: NextFunctio
         ? 'manual' 
         : (field.aiDescription ? 'ai' : 'none');
       
-      // If clearing, ensure it's stored as null/empty
       if (isClearing) req.body.manualDescription = null;
     }
 
+    // Detect whether FK config has changed
+    const wasFk = field.isForeignKey;
+    const hadTarget = !!field.targetCollectionId;
+
     Object.assign(field, req.body);
+
+    // ── PK uniqueness enforcement ──
+    if (field.isPrimaryKey && req.body.isPrimaryKey === true) {
+      await SyncService.enforcePrimaryKeyUniqueness(field.collectionId, field._id);
+    }
+
+    // If FK was turned off, clear target metadata
+    if (req.body.isForeignKey === false) {
+      field.targetCollectionId = undefined;
+      field.targetFieldId = undefined;
+      field.relationshipLabel = undefined;
+      field.relationshipType = undefined;
+    }
+
     await field.save();
+
+    // ── FK → Relationship sync ──
+    const isFkNow = field.isForeignKey;
+    const hasTargetNow = !!field.targetCollectionId && !!field.targetFieldId;
+
+    if (isFkNow && hasTargetNow) {
+      // FK is active with target config — upsert relationship
+      await SyncService.syncFieldToRelationship(field);
+    } else if (wasFk && !isFkNow) {
+      // FK was turned off — remove relationship
+      await SyncService.removeRelationshipForField(field);
+    }
 
     await ActivityService.logActivity(req.user._id, 'UPDATED_FIELD', field.name);
     sendSuccess(res, 200, {
@@ -175,6 +237,9 @@ export const deleteField = async (req: Request, res: Response, next: NextFunctio
     const field = await FieldMetadata.findById(req.params.id);
     if (!field) throw new AppError(404, 'NOT_FOUND', 'Field not found');
 
+    // Cascade: remove related relationships and clean FK references
+    await SyncService.onFieldDeleted(field);
+
     await field.deleteOne();
     await ActivityService.logActivity(req.user._id, 'DELETED_FIELD', field.name);
     sendSuccess(res, 200, { message: 'Field deleted' });
@@ -188,8 +253,6 @@ export const deleteField = async (req: Request, res: Response, next: NextFunctio
 /**
  * POST /catalog/fields/:id/generate-description
  * Re-generates the LLM description for a single field on demand.
- * Available for ALL fields; stores result as aiDescription.
- * Custom fields retain any existing manualDescription on top.
  */
 export const generateFieldDescription = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -206,7 +269,6 @@ export const generateFieldDescription = async (req: Request, res: Response, next
     );
 
     field.aiDescription     = description;
-    // Only update descriptionSource to 'ai' if no manualDescription is overriding
     if (!field.manualDescription) {
       field.descriptionSource = 'ai';
     }
@@ -215,7 +277,7 @@ export const generateFieldDescription = async (req: Request, res: Response, next
     await ActivityService.logActivity(req.user._id, 'GENERATED_DESCRIPTION', field.name);
     sendSuccess(res, 200, {
       description,
-      source,                    // 'ai' | 'fallback' — useful for UI badge
+      source,
       descriptionSource: field.descriptionSource,
     });
   } catch (err) { next(err); }
@@ -224,19 +286,16 @@ export const generateFieldDescription = async (req: Request, res: Response, next
 /**
  * POST /catalog/fields/bulk-generate-descriptions
  * Backfills aiDescription for every field that doesn't have one yet.
- * Restricted to platform_admin. Runs sequentially to avoid Gemini rate limits.
  */
 export const bulkGenerateDescriptions = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Broaden the query: target any field that isn't manually set.
-    // This allows replacing seeded placeholders ('ai' source but derived) with real Gemini descriptions.
     const fields = await FieldMetadata.find({ 
       $or: [
         { descriptionSource: 'none' },
-        { descriptionSource: 'ai' }, // This targets seeded 'ai' placeholders and previous LLM outputs
+        { descriptionSource: 'ai' },
         { descriptionSource: { $exists: false } }
       ],
-      manualDescription: { $in: [null, ''] } // Safety: never overwrite anything with a manual string
+      manualDescription: { $in: [null, ''] }
     })
       .populate('collectionId')
       .lean();
@@ -262,7 +321,6 @@ export const bulkGenerateDescriptions = async (req: Request, res: Response, next
           collection.module,
         );
 
-        const isCustom = f.isCustom;
         const manual = (f as any).manualDescription;
 
         await FieldMetadata.updateOne(
@@ -270,7 +328,6 @@ export const bulkGenerateDescriptions = async (req: Request, res: Response, next
           {
             $set: {
               aiDescription: description,
-              // Only set source to 'ai' if no manual override exists
               descriptionSource: manual ? 'manual' : 'ai',
             },
           },

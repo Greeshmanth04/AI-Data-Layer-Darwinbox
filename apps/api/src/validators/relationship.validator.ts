@@ -6,6 +6,7 @@ export const createRelationshipSchema = z.object({
     targetCollection: z.string().min(1),
     sourceField: z.string().min(1),
     targetField: z.string().min(1),
+    label: z.string().optional(),
     relationshipType: z.enum(['1:1', '1:N', 'M:N']).default('1:N')
   })
 });
@@ -15,6 +16,7 @@ export const updateRelationshipSchema = z.object({
   body: z.object({
     relationshipType: z.enum(['1:1', '1:N', 'M:N']).optional(),
     sourceField: z.string().optional(),
-    targetField: z.string().optional()
+    targetField: z.string().optional(),
+    label: z.string().optional()
   })
 });

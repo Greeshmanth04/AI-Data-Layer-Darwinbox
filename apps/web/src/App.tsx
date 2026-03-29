@@ -23,8 +23,8 @@ const AuthenticatedApp = () => {
          <Topbar />
          <main className="flex-1 overflow-hidden bg-white">
            {activeTab === 'dashboard' && <Dashboard onNavigate={setActiveTab} />}
-           {activeTab === 'catalog' && <Catalog />}
-           {activeTab === 'relationships' && <GraphMapper />}
+           {activeTab === 'catalog' && <Catalog onNavigate={setActiveTab} />}
+           {activeTab === 'relationships' && <GraphMapper onNavigate={setActiveTab} />}
            {activeTab === 'metrics' && <Metrics />}
            {activeTab === 'access' && <AccessControl />}
            {activeTab === 'chat' && <ComingSoon title="Analytics Chat" />}

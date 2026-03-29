@@ -24,7 +24,7 @@ const EntityNode = ({ data, selected }: any) => {
 
 const nodeTypes = { entity: EntityNode };
 
-export default function GraphMapper() {
+export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   const queryClient = useQueryClient();
@@ -34,7 +34,7 @@ export default function GraphMapper() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showConfirmDeleteAll, setShowConfirmDeleteAll] = useState(false);
-  const [edgeForm, setEdgeForm] = useState({ sourceCollection: '', targetCollection: '', sourceField: '', targetField: '', relationshipType: '1:N' });
+  const [edgeForm, setEdgeForm] = useState({ sourceCollection: '', targetCollection: '', sourceField: '', targetField: '', relationshipType: '1:N', label: '' });
 
   const [isLocked, setIsLocked] = useState(false);
   const [preDragPositions, setPreDragPositions] = useState<any>({});
@@ -52,6 +52,8 @@ export default function GraphMapper() {
         setHistory(h => ({ past: [...h.past, { type: 'ADD_EDGES', edges: added }], future: [] }));
       }
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-group'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-detail'] });
     }
   });
 
@@ -66,6 +68,8 @@ export default function GraphMapper() {
       }
       setSelectedEdge(null);
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-group'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-detail'] });
     }
   });
 
@@ -75,6 +79,8 @@ export default function GraphMapper() {
       setHistory(h => ({ past: [...h.past, { type: 'ADD_EDGE', edge: data.data }], future: [] }));
       setShowCreateForm(false);
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-group'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-detail'] });
     }
   });
 
@@ -83,6 +89,8 @@ export default function GraphMapper() {
     onSuccess: () => {
       setShowEditForm(false);
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-group'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-detail'] });
     }
   });
   
@@ -93,7 +101,8 @@ export default function GraphMapper() {
       targetCollection: params.target,
       sourceField: '',
       targetField: '',
-      relationshipType: '1:N'
+      relationshipType: '1:N',
+      label: ''
     });
     setShowCreateForm(true);
   }, []);
@@ -283,6 +292,8 @@ export default function GraphMapper() {
       setSelectedEdge(null);
       setShowConfirmDeleteAll(false);
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-group'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-detail'] });
     }
   });
 
@@ -331,7 +342,7 @@ export default function GraphMapper() {
            <button onClick={() => autoDetect.mutate()} disabled={autoDetect.isPending} className="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2 text-[13px] font-semibold transition-colors disabled:opacity-50">
              <Zap size={15} /> {autoDetect.isPending ? 'Detecting...' : 'Auto-Detect'}
            </button>
-           <button onClick={() => { setEdgeForm({ sourceCollection: '', targetCollection: '', sourceField: '', targetField: '', relationshipType: '1:N' }); setShowCreateForm(true); }} className="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 flex items-center gap-2 text-[13px] font-semibold transition-colors disabled:opacity-50">
+           <button onClick={() => { setEdgeForm({ sourceCollection: '', targetCollection: '', sourceField: '', targetField: '', relationshipType: '1:N', label: '' }); setShowCreateForm(true); }} className="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 flex items-center gap-2 text-[13px] font-semibold transition-colors disabled:opacity-50">
              <Plus size={16} /> Add
            </button>
            <button disabled={relationships.length === 0 || clearAllEdges.isPending} onClick={() => setShowConfirmDeleteAll(true)} className="bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg shadow-sm hover:bg-red-100 flex items-center gap-2 text-[13px] font-semibold transition-colors disabled:opacity-50">
@@ -391,6 +402,17 @@ export default function GraphMapper() {
                    <button onClick={() => setSelectedEdge(null)} className="text-gray-400 hover:bg-gray-200 p-1.5 rounded-md transition-colors"><X size={16}/></button>
                 </div>
                 <div className="p-6 space-y-5 text-[13px] flex-1">
+                  {onNavigate && (
+                      <button onClick={() => onNavigate('catalog')} className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-3 focus:outline-none transition-colors rounded border border-indigo-200 text-xs">
+                          View in Data Catalog
+                      </button>
+                  )}
+                  {rel.label && (
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-gray-500 font-medium">Relationship Label</span>
+                        <span className="font-semibold text-gray-800 tracking-wide">{rel.label}</span>
+                      </div>
+                  )}
                   <div className="flex flex-col gap-1.5">
                     <span className="text-gray-500 font-medium">Relationship Mode</span> 
                     <span className="font-semibold text-gray-800 bg-gray-100 px-3 py-1.5 rounded w-max inline-block shadow-sm border border-gray-200">{rel.relationshipType}</span>
@@ -411,7 +433,7 @@ export default function GraphMapper() {
                   </div>
                 </div>
                 <div className="p-6 flex gap-2 border-t border-gray-100 bg-gray-50/50">
-                  <button onClick={() => { setEdgeForm({ sourceCollection: rel.sourceCollection, targetCollection: rel.targetCollection, sourceField: rel.sourceField, targetField: rel.targetField, relationshipType: rel.relationshipType }); setShowEditForm(true); }} className="flex-1 flex items-center justify-center gap-2 bg-white text-gray-700 hover:bg-gray-50 py-2.5 rounded-lg transition-colors border border-gray-200 shadow-sm font-semibold text-[13px]">
+                  <button onClick={() => { setEdgeForm({ sourceCollection: rel.sourceCollection, targetCollection: rel.targetCollection, sourceField: rel.sourceField, targetField: rel.targetField, relationshipType: rel.relationshipType, label: rel.label || '' }); setShowEditForm(true); }} className="flex-1 flex items-center justify-center gap-2 bg-white text-gray-700 hover:bg-gray-50 py-2.5 rounded-lg transition-colors border border-gray-200 shadow-sm font-semibold text-[13px]">
                     Edit Connection
                   </button>
                   <button onClick={() => deleteEdge.mutate(rel._id)} className="flex items-center justify-center gap-2 bg-white text-red-600 hover:bg-red-50 py-2.5 px-4 rounded-lg transition-colors border border-gray-200 shadow-sm font-semibold text-[13px]">
@@ -460,6 +482,8 @@ export default function GraphMapper() {
                  <option value="1:N">1:N (One to Many)</option>
                  <option value="M:N">M:N (Many to Many)</option>
                </select>
+
+               <input value={edgeForm.label} onChange={e => setEdgeForm({...edgeForm, label: e.target.value})} placeholder="Optional: Edge Label (e.g. Hiring Manager)" className="w-full border border-gray-200 p-2.5 rounded-lg text-[13px] bg-white text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none" />
              </div>
              
              <div className="flex justify-end gap-3 mt-8">

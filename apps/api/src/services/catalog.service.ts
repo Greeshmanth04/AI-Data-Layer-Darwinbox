@@ -61,7 +61,17 @@ export class CatalogService {
     const { allowed, denied } = resolved.effectiveFields;
     
     const filter: any = { collectionId: collId };
-    if (searchQuery) filter.$text = { $search: searchQuery };
+    if (searchQuery) {
+      const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      filter.$or = [
+        { name: regex },
+        { displayName: regex },
+        { aiDescription: regex },
+        { manualDescription: regex },
+        { tags: regex },
+      ];
+    }
 
     const fields = await FieldMetadata.find(filter).lean();
     
@@ -96,10 +106,16 @@ export class CatalogService {
       ? await db.collection(coll.name).countDocuments(rowQuery).catch(() => 0)
       : 0;
 
+    // Fetch up to 3 sample documents
+    const samples = db
+      ? await db.collection(coll.name).find(rowQuery).limit(3).toArray().catch(() => [])
+      : [];
+
     return { 
       ...coll, 
       fields: permittedFields, 
       estimatedRecords,
+      samples,
       _rowFilter: Object.keys(rowQuery).length > 0 ? rowQuery : null
     };
   }

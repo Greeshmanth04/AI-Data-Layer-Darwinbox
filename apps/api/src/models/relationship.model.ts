@@ -5,6 +5,7 @@ export interface IRelationship extends Document {
   targetCollection: string;
   sourceField: string;
   targetField: string;
+  label?: string;
   relationshipType: '1:1' | '1:N' | 'M:N';
   isAutoDetected: boolean;
 }
@@ -14,6 +15,7 @@ const RelationshipSchema = new Schema<IRelationship>({
   targetCollection: { type: String, required: true },
   sourceField: { type: String, required: true },
   targetField: { type: String, required: true },
+  label: { type: String },
   relationshipType: { type: String, enum: ['1:1', '1:N', 'M:N'], default: '1:N' },
   isAutoDetected: { type: Boolean, default: false }
 }, { timestamps: true });

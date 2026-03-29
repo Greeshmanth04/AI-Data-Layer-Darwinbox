@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import {
   Search, Edit3, X, Key, Hash, ChevronDown, ArrowLeft, Sparkles,
-  Tag as TagIcon, Database, Activity, Plus, Trash2, RefreshCw, BookOpen,
+  Tag as TagIcon, Database, Activity, Plus, Trash2, RefreshCw,
   Zap, ShieldCheck, AlertCircle, RotateCcw,
 } from 'lucide-react';
-import { FormulaGuide } from '../components/FormulaGuide';
 import { useAuth } from '../context/AuthContext';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,24 +36,25 @@ function DescriptionSourceBadge({ source }: { source?: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
-export default function Catalog() {
+export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery]           = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [collSearch, setCollSearch]             = useState('');
   const [selectedCollId, setSelectedCollId]     = useState<string | null>(null);
   const [selectedField, setSelectedField]       = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm]       = useState<{ id: string, type: 'collection' | 'field', name: string } | null>(null);
   const [collapsedModules, setCollapsedModules] = useState<string[]>([]);
-  const [isGuideOpen, setIsGuideOpen]           = useState(false);
   const [editDesc, setEditDesc]                 = useState('');
   const [tagInput, setTagInput]                 = useState('');
   const [showCollModal, setShowCollModal]       = useState(false);
   const [isEditingColl, setIsEditingColl]       = useState(false);
   const [collForm, setCollForm]                 = useState({ name: '', displayName: '', module: '', description: '' });
   const [showFieldModal, setShowFieldModal]     = useState(false);
-  const [fieldForm, setFieldForm]               = useState({ name: '', type: 'string', isCustom: true });
+  const [fieldForm, setFieldForm]               = useState({ name: '', type: 'string', isCustom: true, isPrimaryKey: false, isForeignKey: false, targetCollectionId: '', targetFieldId: '', relationshipType: 'one-to-many', relationshipLabel: '' });
   const [bulkResult, setBulkResult]             = useState<{ total: number; updated: number; failed: number } | null>(null);
+  const [knownTags, setKnownTags]               = useState<string[]>([]);
 
   const toggleModule = (mod: string) =>
     setCollapsedModules(prev => prev.includes(mod) ? prev.filter(m => m !== mod) : [...prev, mod]);
@@ -75,10 +75,35 @@ export default function Catalog() {
     queryKey: ['catalog-detail', selectedCollId, debouncedSearchQuery],
     queryFn: () =>
       selectedCollId
-        ? apiClient(`/catalog/collections/${selectedCollId}${debouncedSearchQuery ? `?search=${debouncedSearchQuery}` : ''}`)
+        ? apiClient(`/catalog/collections/${selectedCollId}${debouncedSearchQuery ? `?search=${encodeURIComponent(debouncedSearchQuery)}` : ''}`)
         : null,
     enabled: !!selectedCollId,
   });
+
+  const { data: targetCollectionDetail } = useQuery({
+    queryKey: ['catalog-detail', selectedField?.targetCollectionId],
+    queryFn: () =>
+      selectedField?.targetCollectionId
+        ? apiClient(`/catalog/collections/${selectedField.targetCollectionId}`)
+        : null,
+    enabled: !!selectedField?.targetCollectionId && selectedField.isForeignKey,
+  });
+
+  const { data: formTargetCollectionDetail } = useQuery({
+    queryKey: ['catalog-detail', fieldForm.targetCollectionId],
+    queryFn: () =>
+      fieldForm.targetCollectionId
+        ? apiClient(`/catalog/collections/${fieldForm.targetCollectionId}`)
+        : null,
+    enabled: !!fieldForm.targetCollectionId && fieldForm.isForeignKey,
+  });
+
+  // Re-focus search input after results load so typing isn't interrupted
+  useEffect(() => {
+    if (searchQuery && searchInputRef.current && document.activeElement !== searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [collectionDetail]);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -90,16 +115,18 @@ export default function Catalog() {
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
+      queryClient.invalidateQueries({ queryKey: ['relationships'] });
       setSelectedField(data);
       setEditDesc(data.manualDescription || '');
     },
   });
 
   const updateFieldGeneralMutation = useMutation({
-    mutationFn: (data: { id: string; tags?: string[]; isCustom?: boolean; type?: string }) =>
+    mutationFn: (data: { id: string; tags?: string[]; isCustom?: boolean; type?: string; name?: string; isPrimaryKey?: boolean; isForeignKey?: boolean; targetCollectionId?: string; targetFieldId?: string; relationshipType?: string; relationshipLabel?: string }) =>
       apiClient(`/catalog/fields/${data.id}`, { method: 'PUT', body: JSON.stringify(data) }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
+      queryClient.invalidateQueries({ queryKey: ['relationships'] });
       setSelectedField(data);
     },
   });
@@ -108,6 +135,7 @@ export default function Catalog() {
     mutationFn: (id: string) => apiClient(`/catalog/fields/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
+      queryClient.invalidateQueries({ queryKey: ['relationships'] });
       setSelectedField(null);
     },
   });
@@ -116,6 +144,7 @@ export default function Catalog() {
     mutationFn: (id: string) => apiClient(`/catalog/collections/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['catalog-group'] });
+      queryClient.invalidateQueries({ queryKey: ['relationships'] });
       setSelectedCollId(null);
     },
   });
@@ -125,6 +154,7 @@ export default function Catalog() {
       apiClient('/catalog/fields', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
+      queryClient.invalidateQueries({ queryKey: ['relationships'] });
       setShowFieldModal(false);
     },
   });
@@ -185,9 +215,11 @@ export default function Catalog() {
 
   // ── Auto-select first collection ──────────────────────────────────────────
   const modules = Object.keys(groupedCollections);
-  if (modules.length > 0 && groupedCollections[modules[0]]?.length > 0 && !selectedCollId) {
-    setSelectedCollId(groupedCollections[modules[0]][0]._id);
-  }
+  useEffect(() => {
+    if (modules.length > 0 && groupedCollections[modules[0]]?.length > 0 && !selectedCollId) {
+      setSelectedCollId(groupedCollections[modules[0]][0]._id);
+    }
+  }, [groupedCollections]);
 
   const standardFields = collectionDetail?.fields?.filter((f: any) => !f.isCustom) || [];
   const customFields   = collectionDetail?.fields?.filter((f: any) => f.isCustom) || [];
@@ -199,8 +231,10 @@ export default function Catalog() {
 
   const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && tagInput.trim() && selectedField) {
-      const newTags = [...(selectedField.tags || []), tagInput.trim()];
+      const tag = tagInput.trim();
+      const newTags = [...(selectedField.tags || []), tag];
       updateFieldGeneralMutation.mutate({ id: selectedField._id, tags: newTags });
+      setKnownTags(prev => prev.includes(tag) ? prev : [...prev, tag]);
       setTagInput('');
     }
   };
@@ -235,10 +269,16 @@ export default function Catalog() {
               className="hover:bg-slate-50 transition-colors group cursor-pointer"
             >
               <td className="px-6 py-4 font-mono font-semibold text-slate-800 flex items-center gap-2">
-                {f.name.toLowerCase().includes('id') ? (
+                {f.isPrimaryKey ? (
+                  <span className="bg-amber-100 text-amber-500 rounded p-0.5"><Key size={14} /></span>
+                ) : f.isForeignKey ? (
+                  <span className="bg-indigo-100 text-indigo-500 rounded p-0.5"><Key size={14} /></span>
+                ) : f.name.toLowerCase().includes('id') ? (
                   <Key size={14} className="text-amber-500" />
                 ) : null}
                 {f.name}
+                {f.isPrimaryKey && <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded tracking-wide">PK</span>}
+                {f.isForeignKey && <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-1 py-0.5 rounded tracking-wide">FK</span>}
               </td>
               <td className="px-6 py-4">
                 <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-mono font-semibold text-slate-700">
@@ -409,49 +449,18 @@ export default function Catalog() {
         {/* Collection overview */}
         {!isLoading && collectionDetail && !selectedField && (
           <div className="max-w-5xl space-y-10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-start">
-              <div>
-                <h1 className="text-3xl font-bold text-slate-900 capitalize tracking-tight">
-                  {collectionDetail.displayName}
-                </h1>
-                <p className="text-slate-500 mt-2 text-sm">
-                  {collectionDetail.description || 'Core entity profile mapping evaluating globally.'}
-                </p>
-              </div>
-
-              <div className="flex flex-col items-end gap-3">
-                <div className="relative w-80">
-                  <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search fields, descriptions, tags..."
-                    className="w-full pl-9 pr-3 py-2 text-sm font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm transition-all"
-                  />
+            {/* Header */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h1 className="text-3xl font-bold text-slate-900 capitalize tracking-tight">
+                    {collectionDetail.displayName}
+                  </h1>
+                  <p className="text-slate-500 mt-1 text-sm max-w-lg">
+                    {collectionDetail.description || 'Core entity profile mapping evaluating globally.'}
+                  </p>
                 </div>
-
-                <div className="flex gap-2 flex-wrap justify-end">
-                  {/* Bulk generate — platform_admin & data_steward only */}
-                  {['platform_admin', 'data_steward'].includes(user?.role) && (
-                    <button
-                      onClick={() => { setBulkResult(null); bulkGenerateMutation.mutate(); }}
-                      disabled={bulkGenerateMutation.isPending}
-                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs uppercase tracking-wide px-4 py-2 rounded-lg flex items-center gap-2 border border-indigo-200 transition-colors disabled:opacity-50 shadow-sm"
-                      title="Update AI descriptions for all non-manual fields"
-                    >
-                      <Zap size={14} className={bulkGenerateMutation.isPending ? 'animate-pulse' : ''} />
-                      {bulkGenerateMutation.isPending ? 'Generating...' : 'Update AI Catalog'}
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => setShowFieldModal(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wide px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                  >
-                    <Plus size={14} /> Add Parameter
-                  </button>
-
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => {
                       setIsEditingColl(true);
@@ -463,18 +472,61 @@ export default function Catalog() {
                       });
                       setShowCollModal(true);
                     }}
-                    className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs uppercase tracking-wide px-4 py-2 rounded-lg flex items-center gap-2 border border-slate-200 transition-colors"
+                    className="bg-white hover:bg-slate-50 text-slate-600 p-2 rounded-lg border border-slate-200 transition-colors"
+                    title="Edit Collection"
                   >
-                    <Edit3 size={14} /> Edit
+                    <Edit3 size={16} />
                   </button>
-
                   <button
                     onClick={() => setDeleteConfirm({ id: collectionDetail._id, type: 'collection', name: collectionDetail.displayName })}
-                    className="bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs uppercase tracking-wide px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                    className="bg-white hover:bg-red-50 text-red-500 p-2 rounded-lg border border-slate-200 transition-colors"
+                    title="Delete Collection"
                   >
-                    <Trash2 size={14} /> Drop Map
+                    <Trash2 size={16} />
                   </button>
                 </div>
+              </div>
+
+              {/* Search + Actions row */}
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search fields, descriptions, tags..."
+                    className="w-full pl-9 pr-8 py-2 text-sm font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm transition-all"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {['platform_admin', 'data_steward'].includes(user?.role) && (
+                  <button
+                    onClick={() => { setBulkResult(null); bulkGenerateMutation.mutate(); }}
+                    disabled={bulkGenerateMutation.isPending}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs uppercase tracking-wide px-4 py-2 rounded-lg flex items-center gap-2 border border-indigo-200 transition-colors disabled:opacity-50 shadow-sm shrink-0"
+                    title="Update AI descriptions for all non-manual fields"
+                  >
+                    <Zap size={14} className={bulkGenerateMutation.isPending ? 'animate-pulse' : ''} />
+                    {bulkGenerateMutation.isPending ? 'Generating...' : 'Update AI Catalog'}
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setShowFieldModal(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wide px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shrink-0"
+                >
+                  <Plus size={14} /> Add Parameter
+                </button>
               </div>
             </div>
 
@@ -556,12 +608,6 @@ export default function Catalog() {
               >
                 <ArrowLeft size={16} /> Back to `{collectionDetail?.displayName}`
               </button>
-              <button
-                onClick={() => setIsGuideOpen(true)}
-                className="flex items-center gap-2 text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-100 shadow-sm"
-              >
-                <BookOpen size={14} /> View Formula Guide
-              </button>
             </div>
 
             {/* Field header */}
@@ -569,10 +615,25 @@ export default function Catalog() {
               <div>
                 <div className="flex items-center gap-3">
                   <h1 className="text-3xl font-bold text-slate-900 font-mono flex items-center gap-3">
-                    {selectedField.name.toLowerCase().includes('id')
-                      ? <Key className="text-amber-500" size={28} />
-                      : <Hash className="text-slate-300" size={28} />}
-                    {selectedField.name}
+                    {selectedField.isPrimaryKey ? (
+                        <span className="bg-amber-100 text-amber-500 rounded p-1" title="Primary Key"><Key size={24} /></span>
+                    ) : selectedField.isForeignKey ? (
+                        <span className="bg-indigo-100 text-indigo-500 rounded p-1" title="Foreign Key"><Key size={24} /></span>
+                    ) : selectedField.name.toLowerCase().includes('id') ? (
+                      <Key className="text-amber-500" size={28} />
+                    ) : (
+                      <Hash className="text-slate-300" size={28} />
+                    )}
+                    <input
+                      value={selectedField.name}
+                      onChange={(e) => setSelectedField({ ...selectedField, name: e.target.value })}
+                      onBlur={(e) => {
+                        if (e.target.value.trim() !== '') {
+                          updateFieldGeneralMutation.mutate({ id: selectedField._id, name: e.target.value.trim() });
+                        }
+                      }}
+                      className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-0 p-0 m-0 w-auto min-w-[200px]"
+                    />
                   </h1>
                   <select
                     value={selectedField.type}
@@ -618,6 +679,82 @@ export default function Catalog() {
               >
                 <Trash2 size={18} />
               </button>
+            </div>
+
+            {/* Relationship Configuration */}
+            <div className="grid grid-cols-2 gap-6 pt-2">
+               <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4">
+                  <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">Relationship Profile</h3>
+                      {onNavigate && (
+                          <button onClick={() => onNavigate('relationships')} className="text-xs text-indigo-600 hover:text-indigo-800 font-bold bg-indigo-50 rounded px-3 py-1.5 transition-colors">
+                              Open in Relationship Mapper
+                          </button>
+                      )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-6 items-start">
+                     <div className="flex flex-col gap-4">
+                         <label className="flex items-center gap-3 cursor-pointer">
+                           <input type="checkbox" checked={selectedField.isPrimaryKey} onChange={e => {
+                               const val = e.target.checked;
+                               if (val && selectedField.isForeignKey) { alert("Field cannot be both PK and FK"); return; }
+                               updateFieldGeneralMutation.mutate({ id: selectedField._id, isPrimaryKey: val })
+                           }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+                           <div>
+                               <p className="text-sm font-bold text-slate-700">Primary Key</p>
+                               <p className="text-xs text-slate-500">Uniquely identifies records in this collection</p>
+                           </div>
+                         </label>
+
+                         <label className="flex items-center gap-3 cursor-pointer">
+                           <input type="checkbox" checked={selectedField.isForeignKey} onChange={e => {
+                               const val = e.target.checked;
+                               if (val && selectedField.isPrimaryKey) { alert("Field cannot be both PK and FK"); return; }
+                               updateFieldGeneralMutation.mutate({ id: selectedField._id, isForeignKey: val })
+                           }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+                           <div>
+                               <p className="text-sm font-bold text-slate-700">Foreign Key</p>
+                               <p className="text-xs text-slate-500">Maps to a primary key in another collection</p>
+                           </div>
+                         </label>
+                     </div>
+
+                     {selectedField.isForeignKey && (
+                        <div className="bg-slate-50 rounded-lg p-4 space-y-3 border border-slate-200">
+                             <div>
+                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Collection</p>
+                                 <select value={selectedField.targetCollectionId || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, targetCollectionId: e.target.value })} className="w-full border border-slate-200 rounded p-2 text-sm">
+                                    <option value="">-- Select Collection --</option>
+                                    {Object.values(groupedCollections).flat().map((c: any) => (
+                                        <option key={c._id} value={c._id}>{c.displayName}</option>
+                                    ))}
+                                 </select>
+                             </div>
+                             <div>
+                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Field</p>
+                                 <select value={selectedField.targetFieldId || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, targetFieldId: e.target.value })} className="w-full border border-slate-200 rounded p-2 text-sm" disabled={!selectedField.targetCollectionId}>
+                                    <option value="">-- Select Field --</option>
+                                    {targetCollectionDetail?.fields?.map((f: any) => (
+                                        <option key={f._id} value={f._id}>{f.name}</option>
+                                    ))}
+                                 </select>
+                             </div>
+                             <div>
+                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Relationship Config</p>
+                                 <div className="flex gap-2">
+                                     <select value={selectedField.relationshipType || 'one-to-many'} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, relationshipType: e.target.value })} className="w-1/2 border border-slate-200 rounded p-2 text-sm">
+                                         <option value="one-to-one">One-to-One (1:1)</option>
+                                         <option value="one-to-many">One-to-Many (1:N)</option>
+                                         <option value="many-to-one">Many-to-One (N:1)</option>
+                                     </select>
+                                     <input value={selectedField.relationshipLabel || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, relationshipLabel: e.target.value })} placeholder="Label (Optional)" className="w-1/2 border border-slate-200 rounded p-2 text-sm" />
+                                 </div>
+                             </div>
+                        </div>
+                     )}
+                  </div>
+               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-6 pt-4">
@@ -670,7 +807,7 @@ export default function Catalog() {
               </div>
 
               {/* ── Profiling & Taxonomy card ────────────────────────────── */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                 <div className="bg-[#F8FAFC] px-5 py-4 border-b border-slate-100">
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                     <Activity size={16} className="text-emerald-500" /> Profiling &amp; Taxonomy
@@ -682,14 +819,25 @@ export default function Catalog() {
                       <Database size={12} /> Example Values (Sampled)
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {['(hidden)', '(derived)', '(random)'].map((v, i) => (
-                        <span
-                          key={i}
-                          className="bg-slate-100 text-slate-500 border border-slate-200 text-[11px] font-mono font-semibold px-2 py-0.5 rounded"
-                        >
-                          {selectedField.name}_{i} {v}
-                        </span>
-                      ))}
+                      {collectionDetail?.samples?.map((doc: any, i: number) => {
+                        const val = doc[selectedField.name];
+                        if (val === undefined || val === null) return null;
+                        const displayVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                        const truncated = displayVal.length > 50 ? displayVal.substring(0, 50) + '...' : displayVal;
+                        return (
+                          <span
+                            key={i}
+                            className="bg-slate-100 text-slate-500 border border-slate-200 text-[11px] font-mono font-semibold px-2 py-0.5 rounded"
+                            title={displayVal.length > 50 ? displayVal : undefined}
+                          >
+                            {truncated}
+                          </span>
+                        );
+                      })}
+                      {(!collectionDetail?.samples || collectionDetail.samples.length === 0 || 
+                         collectionDetail.samples.every((doc: any) => doc[selectedField.name] === undefined || doc[selectedField.name] === null)) && (
+                        <span className="text-[11px] italic text-slate-400">No samples available</span>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -713,14 +861,60 @@ export default function Catalog() {
                           ))
                         : <span className="text-[11px] text-slate-400 italic my-auto">No semantic groupings...</span>}
                     </div>
-                    <input
-                      type="text"
-                      value={tagInput}
-                      onChange={e => setTagInput(e.target.value)}
-                      onKeyDown={handleAddTag}
-                      placeholder="Type tag and press Enter"
-                      className="w-full text-xs p-2 border border-slate-200 rounded focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    />
+                    <div className="relative" ref={(el) => {
+                      if (el) (el as any).__tagInputRect = el.getBoundingClientRect();
+                    }}>
+                      <input
+                        type="text"
+                        id="tag-autocomplete-input"
+                        value={tagInput}
+                        onChange={e => setTagInput(e.target.value)}
+                        onKeyDown={handleAddTag}
+                        placeholder="Type tag and press Enter"
+                        className="w-full text-xs p-2 border border-slate-200 rounded focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      />
+                      {tagInput.trim() && (() => {
+                        const fieldTags = (collectionDetail?.fields || []).flatMap((f: any) => f.tags || []);
+                        const allTags = (Array.from(
+                          new Set([...fieldTags, ...knownTags])
+                        ) as string[]).filter(
+                          (t: string) =>
+                            t.toLowerCase().includes(tagInput.toLowerCase()) &&
+                            !(selectedField.tags || []).includes(t)
+                        );
+                        if (allTags.length === 0) return null;
+                        const inputEl = document.getElementById('tag-autocomplete-input');
+                        const rect = inputEl?.getBoundingClientRect();
+                        if (!rect) return null;
+                        return (
+                          <div
+                            style={{
+                              position: 'fixed',
+                              top: rect.bottom + 4,
+                              left: rect.left,
+                              width: rect.width,
+                              zIndex: 9999,
+                            }}
+                            className="bg-white border border-slate-200 rounded-lg shadow-xl max-h-40 overflow-y-auto"
+                          >
+                            {allTags.map((t: string) => (
+                              <button
+                                key={t}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  const newTags = [...(selectedField.tags || []), t];
+                                  updateFieldGeneralMutation.mutate({ id: selectedField._id, tags: newTags });
+                                  setTagInput('');
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors border-b border-slate-50 last:border-0"
+                              >
+                                {t}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -806,7 +1000,7 @@ export default function Catalog() {
             </h2>
             <div className="space-y-3">
               <input
-                placeholder="DB Name (e.g. employees)"
+                placeholder="Collection Name (e.g. employees)"
                 disabled={isEditingColl}
                 value={collForm.name}
                 onChange={e => setCollForm({ ...collForm, name: e.target.value })}
@@ -880,8 +1074,44 @@ export default function Catalog() {
                 <option value="number">Number</option>
                 <option value="boolean">Boolean</option>
                 <option value="date">Date</option>
-                <option value="reference">Reference Pointer</option>
+                <option value="reference">Reference Component</option>
               </select>
+
+              <div className="pt-2 border-t border-slate-100 flex gap-6">
+                 <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={fieldForm.isPrimaryKey} onChange={e => setFieldForm({ ...fieldForm, isPrimaryKey: e.target.checked, isForeignKey: e.target.checked ? false : fieldForm.isForeignKey })} className="rounded" />
+                    Primary Key
+                 </label>
+                 <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={fieldForm.isForeignKey} onChange={e => setFieldForm({ ...fieldForm, isForeignKey: e.target.checked, isPrimaryKey: e.target.checked ? false : fieldForm.isPrimaryKey })} className="rounded" />
+                    Foreign Key
+                 </label>
+              </div>
+
+              {fieldForm.isForeignKey && (
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-2 space-y-3">
+                      <select value={fieldForm.targetCollectionId || ''} onChange={e => setFieldForm({ ...fieldForm, targetCollectionId: e.target.value })} className="w-full text-sm p-2 border rounded">
+                           <option value="">-- Target Collection --</option>
+                           {Object.values(groupedCollections).flat().map((c: any) => (
+                               <option key={c._id} value={c._id}>{c.displayName}</option>
+                           ))}
+                      </select>
+                      <select value={fieldForm.targetFieldId || ''} onChange={e => setFieldForm({ ...fieldForm, targetFieldId: e.target.value })} className="w-full text-sm p-2 border rounded" disabled={!fieldForm.targetCollectionId}>
+                           <option value="">-- Target Field --</option>
+                           {formTargetCollectionDetail?.fields?.map((f: any) => (
+                               <option key={f._id} value={f._id}>{f.name}</option>
+                           ))}
+                      </select>
+                      <div className="flex gap-2">
+                          <select value={fieldForm.relationshipType} onChange={e => setFieldForm({ ...fieldForm, relationshipType: e.target.value })} className="w-1/2 text-sm p-2 border rounded">
+                              <option value="one-to-one">One-to-One (1:1)</option>
+                              <option value="one-to-many">One-to-Many (1:N)</option>
+                              <option value="many-to-one">Many-to-One (N:1)</option>
+                          </select>
+                          <input value={fieldForm.relationshipLabel} onChange={e => setFieldForm({ ...fieldForm, relationshipLabel: e.target.value })} placeholder="Label (Optional)" className="w-1/2 text-sm p-2 border rounded" />
+                      </div>
+                  </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button
@@ -936,8 +1166,6 @@ export default function Catalog() {
           </div>
         </div>
       )}
-
-      <FormulaGuide isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </div>
   );
 }
