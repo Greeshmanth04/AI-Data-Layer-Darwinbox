@@ -330,6 +330,12 @@ async function seed() {
 
   // 5. Security & Access Control (PRD 11.7 Seed Permission Groups)
   console.log('🛡️ Seeding PRD 11.7 mandatory Permission Groups...');
+
+  // Clean up stale groups/users to ensure seed permissions fully overwrite any UI changes
+  await db.collection('groups').deleteMany({});
+  await db.collection('usergroups').deleteMany({});
+  await db.collection('users').deleteMany({});
+
   const pwd = await bcrypt.hash('darwinbox123', 10);
 
   // Create Groups

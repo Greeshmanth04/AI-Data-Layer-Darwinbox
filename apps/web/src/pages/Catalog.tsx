@@ -38,23 +38,24 @@ function DescriptionSourceBadge({ source }: { source?: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const { user } = useAuth();
-  const [searchQuery, setSearchQuery]           = useState('');
+  const isAdmin = user?.role === 'platform_admin';
+  const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [collSearch, setCollSearch]             = useState('');
-  const [selectedCollId, setSelectedCollId]     = useState<string | null>(null);
-  const [selectedField, setSelectedField]       = useState<any>(null);
-  const [deleteConfirm, setDeleteConfirm]       = useState<{ id: string, type: 'collection' | 'field', name: string } | null>(null);
+  const [collSearch, setCollSearch] = useState('');
+  const [selectedCollId, setSelectedCollId] = useState<string | null>(null);
+  const [selectedField, setSelectedField] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, type: 'collection' | 'field', name: string } | null>(null);
   const [collapsedModules, setCollapsedModules] = useState<string[]>([]);
-  const [editDesc, setEditDesc]                 = useState('');
-  const [tagInput, setTagInput]                 = useState('');
-  const [showCollModal, setShowCollModal]       = useState(false);
-  const [isEditingColl, setIsEditingColl]       = useState(false);
-  const [collForm, setCollForm]                 = useState({ name: '', displayName: '', module: '', description: '' });
-  const [showFieldModal, setShowFieldModal]     = useState(false);
-  const [fieldForm, setFieldForm]               = useState({ name: '', type: 'string', isCustom: true, isPrimaryKey: false, isForeignKey: false, targetCollectionId: '', targetFieldId: '', relationshipType: 'one-to-many', relationshipLabel: '' });
-  const [bulkResult, setBulkResult]             = useState<{ total: number; updated: number; failed: number } | null>(null);
-  const [knownTags, setKnownTags]               = useState<string[]>([]);
+  const [editDesc, setEditDesc] = useState('');
+  const [tagInput, setTagInput] = useState('');
+  const [showCollModal, setShowCollModal] = useState(false);
+  const [isEditingColl, setIsEditingColl] = useState(false);
+  const [collForm, setCollForm] = useState({ name: '', displayName: '', module: '', description: '' });
+  const [showFieldModal, setShowFieldModal] = useState(false);
+  const [fieldForm, setFieldForm] = useState({ name: '', type: 'string', isCustom: true, isPrimaryKey: false, isForeignKey: false, targetCollectionId: '', targetFieldId: '', relationshipType: 'one-to-many', relationshipLabel: '' });
+  const [bulkResult, setBulkResult] = useState<{ total: number; updated: number; failed: number } | null>(null);
+  const [knownTags, setKnownTags] = useState<string[]>([]);
 
   const toggleModule = (mod: string) =>
     setCollapsedModules(prev => prev.includes(mod) ? prev.filter(m => m !== mod) : [...prev, mod]);
@@ -188,7 +189,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
       setSelectedField((prev: any) => ({
         ...prev,
-        aiDescription:     data.description,
+        aiDescription: data.description,
         descriptionSource: data.descriptionSource,
       }));
       // Show temporary success feedback on the button
@@ -222,7 +223,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
   }, [groupedCollections]);
 
   const standardFields = collectionDetail?.fields?.filter((f: any) => !f.isCustom) || [];
-  const customFields   = collectionDetail?.fields?.filter((f: any) => f.isCustom) || [];
+  const customFields = collectionDetail?.fields?.filter((f: any) => f.isCustom) || [];
 
   const handleFieldSelect = (f: any) => {
     setSelectedField(f);
@@ -341,17 +342,19 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
               className="w-full pl-9 pr-3 py-2 text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
             />
           </div>
-          <button
-            onClick={() => {
-              setIsEditingColl(false);
-              setCollForm({ name: '', displayName: '', module: '', description: '' });
-              setShowCollModal(true);
-            }}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg border border-slate-200 transition-colors"
-            title="Add Collection"
-          >
-            <Plus size={16} />
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setIsEditingColl(false);
+                setCollForm({ name: '', displayName: '', module: '', description: '' });
+                setShowCollModal(true);
+              }}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg border border-slate-200 transition-colors"
+              title="Add Collection"
+            >
+              <Plus size={16} />
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto py-2 pr-1">
@@ -375,7 +378,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                     coll.name.toLowerCase().includes(collSearch.toLowerCase())
                   )
                   .map((coll: any) => {
-                    const isSelected     = selectedCollId === coll._id && !selectedField;
+                    const isSelected = selectedCollId === coll._id && !selectedField;
                     const isChildSelected = selectedCollId === coll._id && selectedField;
 
                     return (
@@ -399,7 +402,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                             )}
                           </button>
 
-                          {!isSelected && (
+                          {!isSelected && isAdmin && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -460,31 +463,33 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                     {collectionDetail.description || 'Core entity profile mapping evaluating globally.'}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => {
-                      setIsEditingColl(true);
-                      setCollForm({
-                        name:        collectionDetail.name,
-                        displayName: collectionDetail.displayName,
-                        module:      collectionDetail.module,
-                        description: collectionDetail.description || '',
-                      });
-                      setShowCollModal(true);
-                    }}
-                    className="bg-white hover:bg-slate-50 text-slate-600 p-2 rounded-lg border border-slate-200 transition-colors"
-                    title="Edit Collection"
-                  >
-                    <Edit3 size={16} />
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirm({ id: collectionDetail._id, type: 'collection', name: collectionDetail.displayName })}
-                    className="bg-white hover:bg-red-50 text-red-500 p-2 rounded-lg border border-slate-200 transition-colors"
-                    title="Delete Collection"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        setIsEditingColl(true);
+                        setCollForm({
+                          name: collectionDetail.name,
+                          displayName: collectionDetail.displayName,
+                          module: collectionDetail.module,
+                          description: collectionDetail.description || '',
+                        });
+                        setShowCollModal(true);
+                      }}
+                      className="bg-white hover:bg-slate-50 text-slate-600 p-2 rounded-lg border border-slate-200 transition-colors"
+                      title="Edit Collection"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirm({ id: collectionDetail._id, type: 'collection', name: collectionDetail.displayName })}
+                      className="bg-white hover:bg-red-50 text-red-500 p-2 rounded-lg border border-slate-200 transition-colors"
+                      title="Delete Collection"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Search + Actions row */}
@@ -509,7 +514,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                   )}
                 </div>
 
-                {['platform_admin', 'data_steward'].includes(user?.role) && (
+                {isAdmin && (
                   <button
                     onClick={() => { setBulkResult(null); bulkGenerateMutation.mutate(); }}
                     disabled={bulkGenerateMutation.isPending}
@@ -521,12 +526,14 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                   </button>
                 )}
 
-                <button
-                  onClick={() => setShowFieldModal(true)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wide px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shrink-0"
-                >
-                  <Plus size={14} /> Add Parameter
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowFieldModal(true)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wide px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shrink-0"
+                  >
+                    <Plus size={14} /> Add Parameter
+                  </button>
+                )}
               </div>
             </div>
 
@@ -616,50 +623,58 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                 <div className="flex items-center gap-3">
                   <h1 className="text-3xl font-bold text-slate-900 font-mono flex items-center gap-3">
                     {selectedField.isPrimaryKey ? (
-                        <span className="bg-amber-100 text-amber-500 rounded p-1" title="Primary Key"><Key size={24} /></span>
+                      <span className="bg-amber-100 text-amber-500 rounded p-1" title="Primary Key"><Key size={24} /></span>
                     ) : selectedField.isForeignKey ? (
-                        <span className="bg-indigo-100 text-indigo-500 rounded p-1" title="Foreign Key"><Key size={24} /></span>
+                      <span className="bg-indigo-100 text-indigo-500 rounded p-1" title="Foreign Key"><Key size={24} /></span>
                     ) : selectedField.name.toLowerCase().includes('id') ? (
                       <Key className="text-amber-500" size={28} />
                     ) : (
                       <Hash className="text-slate-300" size={28} />
                     )}
-                    <input
-                      value={selectedField.name}
-                      onChange={(e) => setSelectedField({ ...selectedField, name: e.target.value })}
-                      onBlur={(e) => {
-                        if (e.target.value.trim() !== '') {
-                          updateFieldGeneralMutation.mutate({ id: selectedField._id, name: e.target.value.trim() });
-                        }
-                      }}
-                      className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-0 p-0 m-0 w-auto min-w-[200px]"
-                    />
+                    {isAdmin ? (
+                      <input
+                        value={selectedField.name}
+                        onChange={(e) => setSelectedField({ ...selectedField, name: e.target.value })}
+                        onBlur={(e) => {
+                          if (e.target.value.trim() !== '') {
+                            updateFieldGeneralMutation.mutate({ id: selectedField._id, name: e.target.value.trim() });
+                          }
+                        }}
+                        className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-0 p-0 m-0 w-auto min-w-[200px]"
+                      />
+                    ) : (
+                      <span>{selectedField.name}</span>
+                    )}
                   </h1>
-                  <select
-                    value={selectedField.type}
-                    onChange={(e) => updateFieldGeneralMutation.mutate({ id: selectedField._id, type: e.target.value })}
-                    className="bg-slate-100 border border-slate-200 px-2 flex py-1 rounded text-xs font-mono font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 hover:bg-slate-200 transition-colors"
-                  >
-                    <option value="string">string</option>
-                    <option value="number">number</option>
-                    <option value="boolean">boolean</option>
-                    <option value="date">date</option>
-                    <option value="reference">reference</option>
-                  </select>
+                  {isAdmin ? (
+                    <select
+                      value={selectedField.type}
+                      onChange={(e) => updateFieldGeneralMutation.mutate({ id: selectedField._id, type: e.target.value })}
+                      className="bg-slate-100 border border-slate-200 px-2 flex py-1 rounded text-xs font-mono font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 hover:bg-slate-200 transition-colors"
+                    >
+                      <option value="string">string</option>
+                      <option value="number">number</option>
+                      <option value="boolean">boolean</option>
+                      <option value="date">date</option>
+                      <option value="reference">reference</option>
+                    </select>
+                  ) : (
+                    <span className="bg-slate-100 border border-slate-200 px-2 py-1 rounded text-xs font-mono font-bold text-slate-700">{selectedField.type}</span>
+                  )}
 
                   {selectedField.isCustom ? (
                     <span
-                      className="bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs px-2.5 py-0.5 rounded cursor-pointer hover:bg-indigo-100 transition-colors"
-                      onClick={() => updateFieldGeneralMutation.mutate({ id: selectedField._id, isCustom: false })}
+                      className={`bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs px-2.5 py-0.5 rounded ${isAdmin ? 'cursor-pointer hover:bg-indigo-100' : ''} transition-colors`}
+                      onClick={() => isAdmin && updateFieldGeneralMutation.mutate({ id: selectedField._id, isCustom: false })}
                     >
-                      Custom (Click to Standardize)
+                      Custom{isAdmin ? ' (Click to Standardize)' : ''}
                     </span>
                   ) : (
                     <span
-                      className="bg-slate-50 border border-slate-300 text-slate-600 font-bold text-xs px-2.5 py-0.5 rounded cursor-pointer hover:bg-slate-100 transition-colors"
-                      onClick={() => updateFieldGeneralMutation.mutate({ id: selectedField._id, isCustom: true })}
+                      className={`bg-slate-50 border border-slate-300 text-slate-600 font-bold text-xs px-2.5 py-0.5 rounded ${isAdmin ? 'cursor-pointer hover:bg-slate-100' : ''} transition-colors`}
+                      onClick={() => isAdmin && updateFieldGeneralMutation.mutate({ id: selectedField._id, isCustom: true })}
                     >
-                      Standard (Click to Customize)
+                      Standard{isAdmin ? ' (Click to Customize)' : ''}
                     </span>
                   )}
 
@@ -673,88 +688,90 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                 </p>
               </div>
 
-              <button
-                onClick={() => setDeleteConfirm({ id: selectedField._id, type: 'field', name: selectedField.name })}
-                className="p-2 text-red-400 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
-              >
-                <Trash2 size={18} />
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => setDeleteConfirm({ id: selectedField._id, type: 'field', name: selectedField.name })}
+                  className="p-2 text-red-400 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
+                >
+                  <Trash2 size={18} />
+                </button>
+              )}
             </div>
 
             {/* Relationship Configuration */}
             <div className="grid grid-cols-2 gap-6 pt-2">
-               <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4">
-                  <div className="flex justify-between items-center mb-2">
-                      <h3 className="font-bold text-slate-800 flex items-center gap-2">Relationship Profile</h3>
-                      {onNavigate && (
-                          <button onClick={() => onNavigate('relationships')} className="text-xs text-indigo-600 hover:text-indigo-800 font-bold bg-indigo-50 rounded px-3 py-1.5 transition-colors">
-                              Open in Relationship Mapper
-                          </button>
-                      )}
+              <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2">Relationship Profile</h3>
+                  {onNavigate && (
+                    <button onClick={() => onNavigate('relationships')} className="text-xs text-indigo-600 hover:text-indigo-800 font-bold bg-indigo-50 rounded px-3 py-1.5 transition-colors">
+                      Open in Relationship Mapper
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 items-start">
+                  <div className="flex flex-col gap-4">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="checkbox" checked={selectedField.isPrimaryKey} onChange={e => {
+                        const val = e.target.checked;
+                        if (val && selectedField.isForeignKey) { alert("Field cannot be both PK and FK"); return; }
+                        updateFieldGeneralMutation.mutate({ id: selectedField._id, isPrimaryKey: val })
+                      }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+                      <div>
+                        <p className="text-sm font-bold text-slate-700">Primary Key</p>
+                        <p className="text-xs text-slate-500">Uniquely identifies records in this collection</p>
+                      </div>
+                    </label>
+
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="checkbox" checked={selectedField.isForeignKey} onChange={e => {
+                        const val = e.target.checked;
+                        if (val && selectedField.isPrimaryKey) { alert("Field cannot be both PK and FK"); return; }
+                        updateFieldGeneralMutation.mutate({ id: selectedField._id, isForeignKey: val })
+                      }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+                      <div>
+                        <p className="text-sm font-bold text-slate-700">Foreign Key</p>
+                        <p className="text-xs text-slate-500">Maps to a primary key in another collection</p>
+                      </div>
+                    </label>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-6 items-start">
-                     <div className="flex flex-col gap-4">
-                         <label className="flex items-center gap-3 cursor-pointer">
-                           <input type="checkbox" checked={selectedField.isPrimaryKey} onChange={e => {
-                               const val = e.target.checked;
-                               if (val && selectedField.isForeignKey) { alert("Field cannot be both PK and FK"); return; }
-                               updateFieldGeneralMutation.mutate({ id: selectedField._id, isPrimaryKey: val })
-                           }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
-                           <div>
-                               <p className="text-sm font-bold text-slate-700">Primary Key</p>
-                               <p className="text-xs text-slate-500">Uniquely identifies records in this collection</p>
-                           </div>
-                         </label>
 
-                         <label className="flex items-center gap-3 cursor-pointer">
-                           <input type="checkbox" checked={selectedField.isForeignKey} onChange={e => {
-                               const val = e.target.checked;
-                               if (val && selectedField.isPrimaryKey) { alert("Field cannot be both PK and FK"); return; }
-                               updateFieldGeneralMutation.mutate({ id: selectedField._id, isForeignKey: val })
-                           }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
-                           <div>
-                               <p className="text-sm font-bold text-slate-700">Foreign Key</p>
-                               <p className="text-xs text-slate-500">Maps to a primary key in another collection</p>
-                           </div>
-                         </label>
-                     </div>
-
-                     {selectedField.isForeignKey && (
-                        <div className="bg-slate-50 rounded-lg p-4 space-y-3 border border-slate-200">
-                             <div>
-                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Collection</p>
-                                 <select value={selectedField.targetCollectionId || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, targetCollectionId: e.target.value })} className="w-full border border-slate-200 rounded p-2 text-sm">
-                                    <option value="">-- Select Collection --</option>
-                                    {Object.values(groupedCollections).flat().map((c: any) => (
-                                        <option key={c._id} value={c._id}>{c.displayName}</option>
-                                    ))}
-                                 </select>
-                             </div>
-                             <div>
-                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Field</p>
-                                 <select value={selectedField.targetFieldId || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, targetFieldId: e.target.value })} className="w-full border border-slate-200 rounded p-2 text-sm" disabled={!selectedField.targetCollectionId}>
-                                    <option value="">-- Select Field --</option>
-                                    {targetCollectionDetail?.fields?.map((f: any) => (
-                                        <option key={f._id} value={f._id}>{f.name}</option>
-                                    ))}
-                                 </select>
-                             </div>
-                             <div>
-                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Relationship Config</p>
-                                 <div className="flex gap-2">
-                                     <select value={selectedField.relationshipType || 'one-to-many'} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, relationshipType: e.target.value })} className="w-1/2 border border-slate-200 rounded p-2 text-sm">
-                                         <option value="one-to-one">One-to-One (1:1)</option>
-                                         <option value="one-to-many">One-to-Many (1:N)</option>
-                                         <option value="many-to-one">Many-to-One (N:1)</option>
-                                     </select>
-                                     <input value={selectedField.relationshipLabel || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, relationshipLabel: e.target.value })} placeholder="Label (Optional)" className="w-1/2 border border-slate-200 rounded p-2 text-sm" />
-                                 </div>
-                             </div>
+                  {selectedField.isForeignKey && (
+                    <div className="bg-slate-50 rounded-lg p-4 space-y-3 border border-slate-200">
+                      <div>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Collection</p>
+                        <select value={selectedField.targetCollectionId || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, targetCollectionId: e.target.value })} className="w-full border border-slate-200 rounded p-2 text-sm">
+                          <option value="">-- Select Collection --</option>
+                          {Object.values(groupedCollections).flat().map((c: any) => (
+                            <option key={c._id} value={c._id}>{c.displayName}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Field</p>
+                        <select value={selectedField.targetFieldId || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, targetFieldId: e.target.value })} className="w-full border border-slate-200 rounded p-2 text-sm" disabled={!selectedField.targetCollectionId}>
+                          <option value="">-- Select Field --</option>
+                          {targetCollectionDetail?.fields?.map((f: any) => (
+                            <option key={f._id} value={f._id}>{f.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Relationship Config</p>
+                        <div className="flex gap-2">
+                          <select value={selectedField.relationshipType || 'one-to-many'} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, relationshipType: e.target.value })} className="w-1/2 border border-slate-200 rounded p-2 text-sm">
+                            <option value="one-to-one">One-to-One (1:1)</option>
+                            <option value="one-to-many">One-to-Many (1:N)</option>
+                            <option value="many-to-one">Many-to-One (N:1)</option>
+                          </select>
+                          <input value={selectedField.relationshipLabel || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, relationshipLabel: e.target.value })} placeholder="Label (Optional)" className="w-1/2 border border-slate-200 rounded p-2 text-sm" />
                         </div>
-                     )}
-                  </div>
-               </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-6 pt-4">
@@ -834,10 +851,10 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                           </span>
                         );
                       })}
-                      {(!collectionDetail?.samples || collectionDetail.samples.length === 0 || 
-                         collectionDetail.samples.every((doc: any) => doc[selectedField.name] === undefined || doc[selectedField.name] === null)) && (
-                        <span className="text-[11px] italic text-slate-400">No samples available</span>
-                      )}
+                      {(!collectionDetail?.samples || collectionDetail.samples.length === 0 ||
+                        collectionDetail.samples.every((doc: any) => doc[selectedField.name] === undefined || doc[selectedField.name] === null)) && (
+                          <span className="text-[11px] italic text-slate-400">No samples available</span>
+                        )}
                     </div>
                   </div>
                   <div>
@@ -847,18 +864,18 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                     <div className="flex flex-wrap gap-2 mb-2 border border-slate-100 bg-slate-50 p-2 rounded-lg min-h-[44px]">
                       {selectedField.tags?.length
                         ? selectedField.tags.map((t: string) => (
-                            <span
-                              key={t}
-                              className="bg-white border border-slate-200 shadow-sm text-slate-600 text-[11px] font-bold px-2 py-0.5 rounded flex items-center gap-1"
-                            >
-                              {t}{' '}
-                              <X
-                                size={10}
-                                className="hover:text-red-500 cursor-pointer text-slate-400"
-                                onClick={() => handleRemoveTag(t)}
-                              />
-                            </span>
-                          ))
+                          <span
+                            key={t}
+                            className="bg-white border border-slate-200 shadow-sm text-slate-600 text-[11px] font-bold px-2 py-0.5 rounded flex items-center gap-1"
+                          >
+                            {t}{' '}
+                            <X
+                              size={10}
+                              className="hover:text-red-500 cursor-pointer text-slate-400"
+                              onClick={() => handleRemoveTag(t)}
+                            />
+                          </span>
+                        ))
                         : <span className="text-[11px] text-slate-400 italic my-auto">No semantic groupings...</span>}
                     </div>
                     <div className="relative" ref={(el) => {
@@ -1078,39 +1095,39 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
               </select>
 
               <div className="pt-2 border-t border-slate-100 flex gap-6">
-                 <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
-                    <input type="checkbox" checked={fieldForm.isPrimaryKey} onChange={e => setFieldForm({ ...fieldForm, isPrimaryKey: e.target.checked, isForeignKey: e.target.checked ? false : fieldForm.isForeignKey })} className="rounded" />
-                    Primary Key
-                 </label>
-                 <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
-                    <input type="checkbox" checked={fieldForm.isForeignKey} onChange={e => setFieldForm({ ...fieldForm, isForeignKey: e.target.checked, isPrimaryKey: e.target.checked ? false : fieldForm.isPrimaryKey })} className="rounded" />
-                    Foreign Key
-                 </label>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={fieldForm.isPrimaryKey} onChange={e => setFieldForm({ ...fieldForm, isPrimaryKey: e.target.checked, isForeignKey: e.target.checked ? false : fieldForm.isForeignKey })} className="rounded" />
+                  Primary Key
+                </label>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={fieldForm.isForeignKey} onChange={e => setFieldForm({ ...fieldForm, isForeignKey: e.target.checked, isPrimaryKey: e.target.checked ? false : fieldForm.isPrimaryKey })} className="rounded" />
+                  Foreign Key
+                </label>
               </div>
 
               {fieldForm.isForeignKey && (
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-2 space-y-3">
-                      <select value={fieldForm.targetCollectionId || ''} onChange={e => setFieldForm({ ...fieldForm, targetCollectionId: e.target.value })} className="w-full text-sm p-2 border rounded">
-                           <option value="">-- Target Collection --</option>
-                           {Object.values(groupedCollections).flat().map((c: any) => (
-                               <option key={c._id} value={c._id}>{c.displayName}</option>
-                           ))}
-                      </select>
-                      <select value={fieldForm.targetFieldId || ''} onChange={e => setFieldForm({ ...fieldForm, targetFieldId: e.target.value })} className="w-full text-sm p-2 border rounded" disabled={!fieldForm.targetCollectionId}>
-                           <option value="">-- Target Field --</option>
-                           {formTargetCollectionDetail?.fields?.map((f: any) => (
-                               <option key={f._id} value={f._id}>{f.name}</option>
-                           ))}
-                      </select>
-                      <div className="flex gap-2">
-                          <select value={fieldForm.relationshipType} onChange={e => setFieldForm({ ...fieldForm, relationshipType: e.target.value })} className="w-1/2 text-sm p-2 border rounded">
-                              <option value="one-to-one">One-to-One (1:1)</option>
-                              <option value="one-to-many">One-to-Many (1:N)</option>
-                              <option value="many-to-one">Many-to-One (N:1)</option>
-                          </select>
-                          <input value={fieldForm.relationshipLabel} onChange={e => setFieldForm({ ...fieldForm, relationshipLabel: e.target.value })} placeholder="Label (Optional)" className="w-1/2 text-sm p-2 border rounded" />
-                      </div>
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-2 space-y-3">
+                  <select value={fieldForm.targetCollectionId || ''} onChange={e => setFieldForm({ ...fieldForm, targetCollectionId: e.target.value })} className="w-full text-sm p-2 border rounded">
+                    <option value="">-- Target Collection --</option>
+                    {Object.values(groupedCollections).flat().map((c: any) => (
+                      <option key={c._id} value={c._id}>{c.displayName}</option>
+                    ))}
+                  </select>
+                  <select value={fieldForm.targetFieldId || ''} onChange={e => setFieldForm({ ...fieldForm, targetFieldId: e.target.value })} className="w-full text-sm p-2 border rounded" disabled={!fieldForm.targetCollectionId}>
+                    <option value="">-- Target Field --</option>
+                    {formTargetCollectionDetail?.fields?.map((f: any) => (
+                      <option key={f._id} value={f._id}>{f.name}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <select value={fieldForm.relationshipType} onChange={e => setFieldForm({ ...fieldForm, relationshipType: e.target.value })} className="w-1/2 text-sm p-2 border rounded">
+                      <option value="one-to-one">One-to-One (1:1)</option>
+                      <option value="one-to-many">One-to-Many (1:N)</option>
+                      <option value="many-to-one">Many-to-One (N:1)</option>
+                    </select>
+                    <input value={fieldForm.relationshipLabel} onChange={e => setFieldForm({ ...fieldForm, relationshipLabel: e.target.value })} placeholder="Label (Optional)" className="w-1/2 text-sm p-2 border rounded" />
                   </div>
+                </div>
               )}
             </div>
             <div className="flex justify-end gap-2 mt-6">

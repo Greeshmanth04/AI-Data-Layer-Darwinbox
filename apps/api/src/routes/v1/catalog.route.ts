@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { 
+import {
   getCollections, getCollectionById, createCollection, updateCollection, deleteCollection,
   getFieldById, updateField, generateFieldDescription, createField, deleteField,
   getDictionary, bulkGenerateDescriptions
@@ -26,7 +26,7 @@ router.get('/collections', getCollections);
 router.get('/collections/:id', getCollectionById);
 
 router.post('/collections', requireRole(['platform_admin']), validateRequest(schemas.createCollectionSchema), createCollection);
-router.put('/collections/:id', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.updateCollectionSchema), updateCollection);
+router.put('/collections/:id', requireRole(['platform_admin']), validateRequest(schemas.updateCollectionSchema), updateCollection);
 router.delete('/collections/:id', requireRole(['platform_admin']), deleteCollection);
 
 // ── Field routes ─────────────────────────────────────────────────────────────
@@ -34,16 +34,16 @@ router.delete('/collections/:id', requireRole(['platform_admin']), deleteCollect
 // Bulk backfill — must come BEFORE /:id routes to avoid route collision
 router.post(
   '/fields/bulk-generate-descriptions',
-  requireRole(['platform_admin', 'data_steward']),
+  requireRole(['platform_admin']),
   bulkGenerateDescriptions,
 );
 
-router.post('/fields', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.createFieldSchema), createField);
+router.post('/fields', requireRole(['platform_admin']), validateRequest(schemas.createFieldSchema), createField);
 
 // Single field read — Layer 1+2 enforced inside getPermittedFieldById
 router.get('/fields/:id', getFieldById);
 
-router.put('/fields/:id', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.updateFieldSchema), updateField);
+router.put('/fields/:id', requireRole(['platform_admin']), validateRequest(schemas.updateFieldSchema), updateField);
 router.delete('/fields/:id', requireRole(['platform_admin']), deleteField);
 
 // Re-generate description on demand — available to any authenticated user who can view the field

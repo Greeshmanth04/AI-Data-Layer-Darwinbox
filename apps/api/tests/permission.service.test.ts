@@ -20,14 +20,14 @@ describe('PermissionService Resolution Core', () => {
     const resolved = await PermissionService.resolveCollectionPermissions('a', 'employees');
     expect(resolved.canRead).toBe(true);
     expect(resolved.rowFilters.length).toBe(0);
-    expect(resolved.effectiveFields.allowed.length).toBe(0); 
+    expect(resolved.effectiveFields.allowed.length).toBe(0);
   });
 
   test('Case 2: Throws 403 COLLECTION_ACCESS_DENIED if no groups allow reading', async () => {
     (User.findById as jest.Mock).mockResolvedValue(mockUserBase);
     (UserGroup.find as jest.Mock).mockResolvedValue([]);
     (Group.find as jest.Mock).mockResolvedValue([]);
-    
+
     await expect(PermissionService.resolveCollectionPermissions('u1', 'employees'))
       .rejects.toThrow(/COLLECTION_ACCESS_DENIED/);
   });
@@ -41,7 +41,7 @@ describe('PermissionService Resolution Core', () => {
 
     const resolved = await PermissionService.resolveCollectionPermissions('u1', 'employees');
     expect(resolved.canRead).toBe(true);
-    expect(resolved.rowFilters).toEqual([{}]); 
+    expect(resolved.rowFilters).toEqual([{}]);
   });
 
   test('Case 4: Empty allowedFields inside canRead resolves to implicit allow all columns inside effective fields', async () => {
@@ -68,7 +68,7 @@ describe('PermissionService Resolution Core', () => {
     expect(resolved.effectiveFields.allowed).toContain('email');
   });
 
-  test('Case 6: Group denying field strictly overrides any allowed field union array', async () => {
+  test('Case 6: Group denying field strictly removes it from allowed field whitelist', async () => {
     (User.findById as jest.Mock).mockResolvedValue(mockUserBase);
     (UserGroup.find as jest.Mock).mockResolvedValue([{ groupId: 'g1' }, { groupId: 'g2' }]);
     (Group.find as jest.Mock).mockResolvedValue([
@@ -77,7 +77,9 @@ describe('PermissionService Resolution Core', () => {
     ]);
     const resolved = await PermissionService.resolveCollectionPermissions('u1', 'employees');
     const projection = PermissionService.buildMongoProjection(resolved);
-    expect(projection['salary']).toBe(0); 
+    // In whitelist mode, denied fields are filtered out (no mixed 1/0 projections)
+    expect(projection['salary']).toBeUndefined();
+    expect(projection['name']).toBe(1);
   });
 
   test('Case 7: OR logic combining disparate row filters gracefully across groups', async () => {
@@ -87,10 +89,10 @@ describe('PermissionService Resolution Core', () => {
       { permissions: [{ collectionName: 'emps', canRead: true, rowFilters: [{ field: 'reg', operator: 'equals', value: 'US' }] }] },
       { permissions: [{ collectionName: 'emps', canRead: true, rowFilters: [{ field: 'dept', operator: 'equals', value: 'HR' }] }] }
     ]);
-    
+
     const resolved = await PermissionService.resolveCollectionPermissions('u1', 'emps');
     const query = PermissionService.buildMongoQuery(resolved);
-    expect(query).toEqual({ $or: [ { reg: 'US' }, { dept: 'HR' } ] });
+    expect(query).toEqual({ $or: [{ reg: 'US' }, { dept: 'HR' }] });
   });
 
   test('Case 8: assertFieldsAccessible throws 403 FIELD_ACCESS_DENIED if metric attempts fetching denied component', () => {
@@ -101,20 +103,24 @@ describe('PermissionService Resolution Core', () => {
 
   test('Case 9: buildMongoQuery returns {} if ANY overlapping group provides an empty row filter dict', () => {
     const query = PermissionService.buildMongoQuery({ rowFilters: [{ reg: 'US' }, {}] } as any);
-    expect(query).toEqual({}); 
+    expect(query).toEqual({});
   });
 
   test('Case 10: AND operator aggregation natively emitted if a single group possesses multiple internal row filters', async () => {
     (User.findById as jest.Mock).mockResolvedValue(mockUserBase);
     (UserGroup.find as jest.Mock).mockResolvedValue([{ groupId: 'g1' }]);
     (Group.find as jest.Mock).mockResolvedValue([
-      { permissions: [{ collectionName: 'emps', canRead: true, rowFilters: [
-        { field: 'reg', operator: 'equals', value: 'US' },
-        { field: 'stat', operator: 'equals', value: 'Active' }
-      ]}] }
+      {
+        permissions: [{
+          collectionName: 'emps', canRead: true, rowFilters: [
+            { field: 'reg', operator: 'equals', value: 'US' },
+            { field: 'stat', operator: 'equals', value: 'Active' }
+          ]
+        }]
+      }
     ]);
     const resolved = await PermissionService.resolveCollectionPermissions('u1', 'emps');
     const query = PermissionService.buildMongoQuery(resolved);
-    expect(query).toEqual({ "$or": [ { "$and": [{ reg: "US" }, { stat: "Active" }] } ] });
+    expect(query).toEqual({ "$or": [{ "$and": [{ reg: "US" }, { stat: "Active" }] }] });
   });
 });

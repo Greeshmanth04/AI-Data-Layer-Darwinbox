@@ -5,7 +5,7 @@ import { LLMService } from './llm.service';
 import { AppError } from '../utils/errors';
 
 export class CatalogService {
-  
+
   static async getPermittedCollections(userId: string) {
     const collections = await CollectionMetadata.find().lean();
     const permitted = [];
@@ -32,7 +32,7 @@ export class CatalogService {
         const estimatedRecords = db
           ? await db.collection(coll.name).countDocuments(rowQuery).catch(() => 0)
           : 0;
-        
+
         permitted.push({ ...coll, fieldCount: permittedCount, estimatedRecords });
       }
     }
@@ -59,7 +59,7 @@ export class CatalogService {
 
     // Layer 2: Build field projection using resolved rules
     const { allowed, denied } = resolved.effectiveFields;
-    
+
     const filter: any = { collectionId: collId };
     if (searchQuery) {
       const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -74,7 +74,7 @@ export class CatalogService {
     }
 
     const fields = await FieldMetadata.find(filter).lean();
-    
+
     // Filter field metadata to only permitted fields (Layer 2)
     const permittedFields = fields.filter(f => {
       if (denied.includes(f.name)) return false;
@@ -84,7 +84,7 @@ export class CatalogService {
       const manual = (f as any).manualDescription;
       const ai = (f as any).aiDescription;
       let source = (f as any).descriptionSource || 'none';
-      
+
       // Self-healing: if source is 'none' but data exists, infer it
       if (source === 'none') {
         if (manual) source = 'manual';
@@ -106,14 +106,15 @@ export class CatalogService {
       ? await db.collection(coll.name).countDocuments(rowQuery).catch(() => 0)
       : 0;
 
-    // Fetch up to 3 sample documents
+    // Fetch up to 3 sample documents with field projection applied
+    const sampleProjection = PermissionService.buildMongoProjection(resolved);
     const samples = db
-      ? await db.collection(coll.name).find(rowQuery).limit(3).toArray().catch(() => [])
+      ? await db.collection(coll.name).find(rowQuery).project(sampleProjection).limit(3).toArray().catch(() => [])
       : [];
 
-    return { 
-      ...coll, 
-      fields: permittedFields, 
+    return {
+      ...coll,
+      fields: permittedFields,
       estimatedRecords,
       samples,
       _rowFilter: Object.keys(rowQuery).length > 0 ? rowQuery : null
@@ -167,9 +168,9 @@ export class CatalogService {
   static async getDictionary(userId: string) {
     const collections = await CollectionMetadata.find().lean();
     const allFields = await FieldMetadata.find().lean();
-    
+
     const dictionary = [];
-    
+
     for (const coll of collections) {
       // Layer 1: Collection access
       const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, false);
@@ -183,11 +184,11 @@ export class CatalogService {
           if (allowed.length > 0 && !allowed.includes(f.name)) return false;
           return true;
         }).map(f => f.name);
-        
+
         dictionary.push({ name: coll.name, fields: permittedFields });
       }
     }
-    
+
     return dictionary;
   }
 }

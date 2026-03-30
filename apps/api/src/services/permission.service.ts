@@ -22,15 +22,15 @@ export class PermissionService {
   private static parseOperator(filter: IRowFilter): any {
     const { field, operator, value } = filter;
     switch (operator) {
-      case 'eq':  return { [field]: { $eq: value } };
+      case 'eq': return { [field]: { $eq: value } };
       case 'neq': return { [field]: { $ne: value } };
-      case 'in':  return { [field]: { $in: Array.isArray(value) ? value : [value] } };
+      case 'in': return { [field]: { $in: Array.isArray(value) ? value : [value] } };
       case 'nin': return { [field]: { $nin: Array.isArray(value) ? value : [value] } };
-      case 'gt':  return { [field]: { $gt: value } };
+      case 'gt': return { [field]: { $gt: value } };
       case 'gte': return { [field]: { $gte: value } };
-      case 'lt':  return { [field]: { $lt: value } };
+      case 'lt': return { [field]: { $lt: value } };
       case 'lte': return { [field]: { $lte: value } };
-      default:    return {};
+      default: return {};
     }
   }
 
@@ -142,17 +142,25 @@ export class PermissionService {
    * allowedFields: whitelist (only include specified fields)
    * deniedFields:  blacklist (exclude specified fields; overrides allowedFields)
    * empty allowedFields = all fields permitted (zero projection = include everything except denied)
+   *
+   * IMPORTANT: MongoDB does NOT allow mixing inclusion (1) and exclusion (0) in
+   * the same projection (except for _id). When both allowed and denied lists exist,
+   * we use inclusion-only mode and simply omit the denied fields from the whitelist.
    */
   static buildMongoProjection(resolved: ResolvedPermissions): Record<string, number> {
     const { allowed, denied } = resolved.effectiveFields;
     const projection: Record<string, number> = {};
 
     if (allowed.length > 0) {
-      // Whitelist mode: only include explicitly allowed
-      allowed.forEach(f => { projection[f] = 1; });
+      // Whitelist mode: include only allowed fields, minus any denied
+      const effectiveAllowed = allowed.filter(f => !denied.includes(f));
+      effectiveAllowed.forEach(f => { projection[f] = 1; });
+      // Always include _id in whitelist mode (MongoDB allows _id: 1 alongside inclusions)
+      projection['_id'] = 1;
+    } else {
+      // Blacklist-only mode: exclude denied fields (no whitelist constraint)
+      denied.forEach(f => { projection[f] = 0; });
     }
-    // Blacklist: denied always take precedence (spec: "overrides allowedFields")
-    denied.forEach(f => { projection[f] = 0; });
 
     return projection;
   }
