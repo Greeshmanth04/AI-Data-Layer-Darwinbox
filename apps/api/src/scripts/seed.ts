@@ -18,8 +18,8 @@ const upsert = async (db: mongoose.mongo.Db, collName: string, filter: any, doc:
   if (_id) update.$setOnInsert = { _id };
 
   return await db.collection(collName).findOneAndUpdate(
-    filter, 
-    update, 
+    filter,
+    update,
     { upsert: true, returnDocument: 'after' }
   );
 };
@@ -29,71 +29,83 @@ const upsert = async (db: mongoose.mongo.Db, collName: string, filter: any, doc:
 // --------------------------------------------------
 
 const metadata = [
-  { slug: 'employees', name: 'Employees', module: 'Core', description: 'Central HR employee directory', fields: [
-    { fieldName: 'employee_id', dataType: 'string', isPrimaryKey: true, isCustom: false, tags: ['identifier'] },
-    { fieldName: 'first_name', dataType: 'string', isPrimaryKey: false, isCustom: false },
-    { fieldName: 'last_name', dataType: 'string', isPrimaryKey: false, isCustom: false },
-    { fieldName: 'email', dataType: 'string', isPrimaryKey: false, isCustom: false },
-    { fieldName: 'phone', dataType: 'string', isPrimaryKey: false, isCustom: false },
-    { fieldName: 'date_of_joining', dataType: 'date', isPrimaryKey: false, isCustom: false },
-    { fieldName: 'employment_status', dataType: 'string', isPrimaryKey: false, isCustom: false },
-    { fieldName: 'department', dataType: 'string', isPrimaryKey: false, isCustom: true, tags: ['org'] },
-    { fieldName: 'designation', dataType: 'string', isPrimaryKey: false, isCustom: true },
-    { fieldName: 'region', dataType: 'string', isPrimaryKey: false, isCustom: true },
-    { fieldName: 'manager_id', dataType: 'string', isPrimaryKey: false, isForeignKey: true, isCustom: false },
-    { fieldName: 'position_id', dataType: 'string', isPrimaryKey: false, isForeignKey: true, isCustom: false },
-    { fieldName: 'salary', dataType: 'number', isPrimaryKey: false, isCustom: true }
-  ]},
-  { slug: 'positions', name: 'Positions', module: 'Core', description: 'Available roles inside the organization', fields: [
-    { fieldName: 'position_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
-    { fieldName: 'title', dataType: 'string', isCustom: false },
-    { fieldName: 'department', dataType: 'string', isCustom: true },
-    { fieldName: 'location', dataType: 'string', isCustom: true },
-    { fieldName: 'employment_type', dataType: 'string', isCustom: false },
-    { fieldName: 'level', dataType: 'string', isCustom: true },
-    { fieldName: 'hiring_manager_id', dataType: 'string', isForeignKey: true, isCustom: false }
-  ]},
-  { slug: 'offers', name: 'Offers', module: 'Recruitment', description: 'Candidate offers and pipeline details', fields: [
-    { fieldName: 'offer_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
-    { fieldName: 'candidate_name', dataType: 'string', isCustom: false },
-    { fieldName: 'email', dataType: 'string', isCustom: false },
-    { fieldName: 'position_id', dataType: 'string', isForeignKey: true, isCustom: false },
-    { fieldName: 'offered_salary', dataType: 'number', isCustom: true },
-    { fieldName: 'status', dataType: 'string', isCustom: false },
-    { fieldName: 'offer_date', dataType: 'date', isCustom: false },
-    { fieldName: 'joining_date', dataType: 'date', isCustom: false }
-  ]},
-  { slug: 'leave', name: 'Leave', module: 'Time', description: 'PTO and sickness balances', fields: [
-    { fieldName: 'leave_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
-    { fieldName: 'employee_id', dataType: 'string', isForeignKey: true, isCustom: false },
-    { fieldName: 'leave_type', dataType: 'string', isCustom: false },
-    { fieldName: 'start_date', dataType: 'date', isCustom: false },
-    { fieldName: 'end_date', dataType: 'date', isCustom: false },
-    { fieldName: 'days', dataType: 'number', isCustom: false },
-    { fieldName: 'status', dataType: 'string', isCustom: false },
-    { fieldName: 'applied_on', dataType: 'date', isCustom: false }
-  ]},
-  { slug: 'attendance', name: 'Attendance', module: 'Time', description: 'Daily clock-in logs', fields: [
-    { fieldName: 'attendance_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
-    { fieldName: 'employee_id', dataType: 'string', isForeignKey: true, isCustom: false },
-    { fieldName: 'date', dataType: 'date', isCustom: false },
-    { fieldName: 'check_in', dataType: 'string', isCustom: false },
-    { fieldName: 'check_out', dataType: 'string', isCustom: false },
-    { fieldName: 'status', dataType: 'string', isCustom: false },
-    { fieldName: 'work_mode', dataType: 'string', isCustom: true },
-    { fieldName: 'hours_worked', dataType: 'number', isCustom: false }
-  ]},
-  { slug: 'payroll', name: 'Payroll', module: 'Payroll', description: 'Monthly payment compensations', fields: [
-    { fieldName: 'payroll_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
-    { fieldName: 'employee_id', dataType: 'string', isForeignKey: true, isCustom: false },
-    { fieldName: 'pay_period', dataType: 'string', isCustom: false },
-    { fieldName: 'basic_salary', dataType: 'number', isCustom: true },
-    { fieldName: 'hra', dataType: 'number', isCustom: true },
-    { fieldName: 'bonus', dataType: 'number', isCustom: true },
-    { fieldName: 'deductions', dataType: 'number', isCustom: true },
-    { fieldName: 'net_salary', dataType: 'number', isCustom: true },
-    { fieldName: 'payment_status', dataType: 'string', isCustom: false }
-  ]}
+  {
+    slug: 'employees', name: 'Employees', module: 'Core', description: 'Central HR employee directory', fields: [
+      { fieldName: 'employee_id', dataType: 'string', isPrimaryKey: true, isCustom: false, tags: ['identifier'] },
+      { fieldName: 'first_name', dataType: 'string', isPrimaryKey: false, isCustom: false },
+      { fieldName: 'last_name', dataType: 'string', isPrimaryKey: false, isCustom: false },
+      { fieldName: 'email', dataType: 'string', isPrimaryKey: false, isCustom: false },
+      { fieldName: 'phone', dataType: 'string', isPrimaryKey: false, isCustom: false },
+      { fieldName: 'date_of_joining', dataType: 'date', isPrimaryKey: false, isCustom: false },
+      { fieldName: 'employment_status', dataType: 'string', isPrimaryKey: false, isCustom: false },
+      { fieldName: 'department', dataType: 'string', isPrimaryKey: false, isCustom: true, tags: ['org'] },
+      { fieldName: 'designation', dataType: 'string', isPrimaryKey: false, isCustom: true },
+      { fieldName: 'region', dataType: 'string', isPrimaryKey: false, isCustom: true },
+      { fieldName: 'manager_id', dataType: 'string', isPrimaryKey: false, isForeignKey: true, isCustom: false },
+      { fieldName: 'position_id', dataType: 'string', isPrimaryKey: false, isForeignKey: true, isCustom: false },
+      { fieldName: 'salary', dataType: 'number', isPrimaryKey: false, isCustom: true }
+    ]
+  },
+  {
+    slug: 'positions', name: 'Positions', module: 'Core', description: 'Available roles inside the organization', fields: [
+      { fieldName: 'position_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
+      { fieldName: 'title', dataType: 'string', isCustom: false },
+      { fieldName: 'department', dataType: 'string', isCustom: true },
+      { fieldName: 'location', dataType: 'string', isCustom: true },
+      { fieldName: 'employment_type', dataType: 'string', isCustom: false },
+      { fieldName: 'level', dataType: 'string', isCustom: true },
+      { fieldName: 'hiring_manager_id', dataType: 'string', isForeignKey: true, isCustom: false }
+    ]
+  },
+  {
+    slug: 'offers', name: 'Offers', module: 'Recruitment', description: 'Candidate offers and pipeline details', fields: [
+      { fieldName: 'offer_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
+      { fieldName: 'candidate_name', dataType: 'string', isCustom: false },
+      { fieldName: 'email', dataType: 'string', isCustom: false },
+      { fieldName: 'position_id', dataType: 'string', isForeignKey: true, isCustom: false },
+      { fieldName: 'offered_salary', dataType: 'number', isCustom: true },
+      { fieldName: 'status', dataType: 'string', isCustom: false },
+      { fieldName: 'offer_date', dataType: 'date', isCustom: false },
+      { fieldName: 'joining_date', dataType: 'date', isCustom: false }
+    ]
+  },
+  {
+    slug: 'leave', name: 'Leave', module: 'Time', description: 'PTO and sickness balances', fields: [
+      { fieldName: 'leave_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
+      { fieldName: 'employee_id', dataType: 'string', isForeignKey: true, isCustom: false },
+      { fieldName: 'leave_type', dataType: 'string', isCustom: false },
+      { fieldName: 'start_date', dataType: 'date', isCustom: false },
+      { fieldName: 'end_date', dataType: 'date', isCustom: false },
+      { fieldName: 'days', dataType: 'number', isCustom: false },
+      { fieldName: 'status', dataType: 'string', isCustom: false },
+      { fieldName: 'applied_on', dataType: 'date', isCustom: false }
+    ]
+  },
+  {
+    slug: 'attendance', name: 'Attendance', module: 'Time', description: 'Daily clock-in logs', fields: [
+      { fieldName: 'attendance_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
+      { fieldName: 'employee_id', dataType: 'string', isForeignKey: true, isCustom: false },
+      { fieldName: 'date', dataType: 'date', isCustom: false },
+      { fieldName: 'check_in', dataType: 'string', isCustom: false },
+      { fieldName: 'check_out', dataType: 'string', isCustom: false },
+      { fieldName: 'status', dataType: 'string', isCustom: false },
+      { fieldName: 'work_mode', dataType: 'string', isCustom: true },
+      { fieldName: 'hours_worked', dataType: 'number', isCustom: false }
+    ]
+  },
+  {
+    slug: 'payroll', name: 'Payroll', module: 'Payroll', description: 'Monthly payment compensations', fields: [
+      { fieldName: 'payroll_id', dataType: 'string', isPrimaryKey: true, isCustom: false },
+      { fieldName: 'employee_id', dataType: 'string', isForeignKey: true, isCustom: false },
+      { fieldName: 'pay_period', dataType: 'string', isCustom: false },
+      { fieldName: 'basic_salary', dataType: 'number', isCustom: true },
+      { fieldName: 'hra', dataType: 'number', isCustom: true },
+      { fieldName: 'bonus', dataType: 'number', isCustom: true },
+      { fieldName: 'deductions', dataType: 'number', isCustom: true },
+      { fieldName: 'net_salary', dataType: 'number', isCustom: true },
+      { fieldName: 'payment_status', dataType: 'string', isCustom: false }
+    ]
+  }
 ];
 
 // --------------------------------------------------
@@ -143,14 +155,14 @@ async function seed() {
         }
       }
 
-      await upsert(db, 'fieldmetadatas', { collectionId: collId, name: f.fieldName }, { 
+      await upsert(db, 'fieldmetadatas', { collectionId: collId, name: f.fieldName }, {
         _id: fieldId,
-        collectionId: collId, 
-        name: f.fieldName, 
-        displayName: humanName, 
-        type: f.dataType, 
-        isPrimaryKey: !!f.isPrimaryKey, 
-        isForeignKey: !!f.isForeignKey, 
+        collectionId: collId,
+        name: f.fieldName,
+        displayName: humanName,
+        type: f.dataType,
+        isPrimaryKey: !!f.isPrimaryKey,
+        isForeignKey: !!f.isForeignKey,
         isCustom: !!f.isCustom,
         ...(targetCollectionId ? { targetCollectionId } : {}),
         ...(targetFieldId ? { targetFieldId } : {}),
@@ -165,6 +177,13 @@ async function seed() {
   }
 
   // 2. HR Data Seed
+  // Clean up stale lowercase collections from previous seed runs
+  console.log('🧹 Dropping stale lowercase collections (if any)...');
+  const staleNames = ['employees', 'positions', 'offers', 'leave', 'attendance', 'payroll'];
+  for (const name of staleNames) {
+    try { await db.collection(name).drop(); } catch (_) { /* may not exist */ }
+  }
+
   console.log('📄 Seeding Raw HR Data (20 Items each)...');
   const positions = Array.from({ length: 20 }, (_, i) => ({
     position_id: `POS-${String(i + 1).padStart(3, '0')}`,
@@ -176,7 +195,7 @@ async function seed() {
     hiring_manager_id: i > 0 ? `EMP-001` : null
   }));
   for (const pos of positions) {
-    await upsert(db, 'positions', { position_id: pos.position_id }, pos);
+    await upsert(db, 'Positions', { position_id: pos.position_id }, pos);
   }
 
   const employees = Array.from({ length: 20 }, (_, i) => ({
@@ -195,7 +214,7 @@ async function seed() {
     salary: 50000 + (i * 2000)
   }));
   for (const emp of employees) {
-    await upsert(db, 'employees', { employee_id: emp.employee_id }, emp);
+    await upsert(db, 'Employees', { employee_id: emp.employee_id }, emp);
   }
 
   const offers = Array.from({ length: 20 }, (_, i) => ({
@@ -209,7 +228,7 @@ async function seed() {
     joining_date: new Date()
   }));
   for (const offer of offers) {
-    await upsert(db, 'offers', { offer_id: offer.offer_id }, offer);
+    await upsert(db, 'Offers', { offer_id: offer.offer_id }, offer);
   }
 
   const leave = Array.from({ length: 20 }, (_, i) => ({
@@ -223,7 +242,7 @@ async function seed() {
     applied_on: new Date()
   }));
   for (const l of leave) {
-    await upsert(db, 'leave', { leave_id: l.leave_id }, l);
+    await upsert(db, 'Leave', { leave_id: l.leave_id }, l);
   }
 
   const attendance = Array.from({ length: 20 }, (_, i) => ({
@@ -237,7 +256,7 @@ async function seed() {
     hours_worked: 8
   }));
   for (const att of attendance) {
-    await upsert(db, 'attendance', { attendance_id: att.attendance_id }, att);
+    await upsert(db, 'Attendance', { attendance_id: att.attendance_id }, att);
   }
 
   const payroll = Array.from({ length: 20 }, (_, i) => ({
@@ -252,7 +271,7 @@ async function seed() {
     payment_status: 'paid'
   }));
   for (const pay of payroll) {
-    await upsert(db, 'payroll', { payroll_id: pay.payroll_id }, pay);
+    await upsert(db, 'Payroll', { payroll_id: pay.payroll_id }, pay);
   }
 
   // 3. Relationships Seed — uses string-based collection/field names (matching Mongoose model)
@@ -298,7 +317,7 @@ async function seed() {
   for (const m of mtx) {
     const collObjIds = m.cols.map(c => genId(`COLL_${c}`));
     await upsert(db, 'metrics', { name: m.name }, {
-      _id: genId(`METRIC_${m.name.replace(/\s/g,'_')}`),
+      _id: genId(`METRIC_${m.name.replace(/\s/g, '_')}`),
       name: m.name,
       formula: m.formula,
       description: `Description for ${m.name}`,
@@ -312,68 +331,68 @@ async function seed() {
   // 5. Security & Access Control (PRD 11.7 Seed Permission Groups)
   console.log('🛡️ Seeding PRD 11.7 mandatory Permission Groups...');
   const pwd = await bcrypt.hash('darwinbox123', 10);
-  
+
   // Create Groups
   const hrPerms = metadata.map(m => ({
-    collectionName: m.name, 
-    canRead: true, 
-    allowedFields: [], 
-    deniedFields: [], 
-    rowFilters: [] 
+    collectionName: m.name,
+    canRead: true,
+    allowedFields: [],
+    deniedFields: [],
+    rowFilters: []
   }));
-  
+
   await upsert(db, 'groups', { name: 'HR Admins' }, {
-    _id: genId('G_HR'), 
-    name: 'HR Admins', 
-    description: 'Full data access across all HR modules', 
+    _id: genId('G_HR'),
+    name: 'HR Admins',
+    description: 'Full data access across all HR modules',
     permissions: hrPerms
   });
 
   const payrollPerms = [
-    { 
-      collectionName: 'Employees', 
-      canRead: true, 
-      allowedFields: [], 
-      deniedFields: ['salary'], 
-      rowFilters: [] 
+    {
+      collectionName: 'Employees',
+      canRead: true,
+      allowedFields: [],
+      deniedFields: ['salary'],
+      rowFilters: []
     },
-    { 
-      collectionName: 'Payroll', 
-      canRead: true, 
-      allowedFields: [], 
-      deniedFields: [], 
-      rowFilters: [] 
+    {
+      collectionName: 'Payroll',
+      canRead: true,
+      allowedFields: [],
+      deniedFields: [],
+      rowFilters: []
     }
   ];
-  
+
   await upsert(db, 'groups', { name: 'Payroll Team' }, {
-    _id: genId('G_PAY'), 
-    name: 'Payroll Team', 
-    description: 'Sensitive employee data masked, full payroll control', 
+    _id: genId('G_PAY'),
+    name: 'Payroll Team',
+    description: 'Sensitive employee data masked, full payroll control',
     permissions: payrollPerms
   });
 
   const regionalPerms = [
-    { 
-      collectionName: 'Employees', 
-      canRead: true, 
-      allowedFields: [], 
-      deniedFields: ['salary', 'designation', 'manager_id'], 
-      rowFilters: [{ field: 'region', operator: 'eq', value: 'South' }] 
+    {
+      collectionName: 'Employees',
+      canRead: true,
+      allowedFields: [],
+      deniedFields: ['salary', 'designation', 'manager_id'],
+      rowFilters: [{ field: 'region', operator: 'eq', value: 'South' }]
     },
-    { 
-      collectionName: 'Leave', 
-      canRead: true, 
-      allowedFields: [], 
-      deniedFields: [], 
-      rowFilters: [] 
+    {
+      collectionName: 'Leave',
+      canRead: true,
+      allowedFields: [],
+      deniedFields: [],
+      rowFilters: []
     }
   ];
-  
+
   await upsert(db, 'groups', { name: 'Regional Viewer' }, {
-    _id: genId('G_REGIONAL'), 
-    name: 'Regional Viewer', 
-    description: 'South Branch Context Only with mandatory masking', 
+    _id: genId('G_REGIONAL'),
+    name: 'Regional Viewer',
+    description: 'South Branch Context Only with mandatory masking',
     permissions: regionalPerms
   });
 
