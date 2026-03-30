@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { 
+import {
   getGroups, createGroup, updateGroup, deleteGroup,
   updateGroupMembers, getGroupPermissions, updateCollectionPermission, deleteCollectionPermission,
   getUsers, createUser, updateUser, updateUserStatus, deleteUser
@@ -11,7 +11,7 @@ import * as schemas from '../../validators/access.validator';
 
 const router = Router();
 
-router.use(authenticateUser, requireRole(['platform_admin', 'data_steward']));
+router.use(authenticateUser, requireRole(['platform_admin']));
 
 // Groups
 router.get('/groups', getGroups);
