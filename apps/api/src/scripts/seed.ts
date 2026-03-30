@@ -119,6 +119,11 @@ async function seed() {
 
   // 1. Metadata Seed (Collections & Fields)
   console.log('📦 Seeding PRD standard Collections & Fields...');
+
+  // Clean up stale metadata to ensure PK/FK flags are fresh
+  await db.collection('fieldmetadatas').deleteMany({});
+  await db.collection('collectionmetadatas').deleteMany({});
+
   for (const group of metadata) {
     const collId = genId(`COLL_${group.slug}`);
     await upsert(db, 'collectionmetadatas', { name: group.name }, {

@@ -1,6 +1,7 @@
 import { FieldMetadata, IFieldMetadata } from '../models/fieldMetadata.model';
 import { Relationship } from '../models/relationship.model';
 import { CollectionMetadata } from '../models/collectionMetadata.model';
+import { AppError } from '../utils/errors';
 
 /**
  * SyncService — bidirectional sync between Data Catalog (FieldMetadata) and
@@ -21,10 +22,10 @@ export class SyncService {
   /** Map relationship type between the two schemas */
   static catalogTypeToRelType(t?: string): '1:1' | '1:N' | 'M:N' {
     switch (t) {
-      case 'one-to-one':  return '1:1';
+      case 'one-to-one': return '1:1';
       case 'one-to-many': return '1:N';
       case 'many-to-one': return 'M:N';
-      default:            return '1:N';
+      default: return '1:N';
     }
   }
 
@@ -33,7 +34,7 @@ export class SyncService {
       case '1:1': return 'one-to-one';
       case '1:N': return 'one-to-many';
       case 'M:N': return 'many-to-one';
-      default:    return 'one-to-many';
+      default: return 'one-to-many';
     }
   }
 
@@ -239,6 +240,122 @@ export class SyncService {
           },
         }
       );
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PK/FK Validation
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Validate that the field's values in the actual MongoDB collection are unique.
+   * If duplicates exist, the field cannot be designated as a Primary Key.
+   */
+  static async validatePrimaryKeyData(
+    collectionId: string | mongoose.Types.ObjectId,
+    fieldName: string
+  ): Promise<void> {
+    const coll = await CollectionMetadata.findById(collectionId).lean();
+    if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
+
+    const db = (FieldMetadata.db as any).db;
+    if (!db) return; // Skip if no direct DB access (e.g. in tests)
+
+    try {
+      // Use aggregation to find duplicate non-null values
+      const duplicates = await db.collection(coll.name).aggregate([
+        { $match: { [fieldName]: { $ne: null, $exists: true } } },
+        { $group: { _id: `$${fieldName}`, count: { $sum: 1 } } },
+        { $match: { count: { $gt: 1 } } },
+        { $limit: 5 },
+      ]).toArray();
+
+      if (duplicates.length > 0) {
+        const examples = duplicates.map((d: any) => d._id).join(', ');
+        throw new AppError(
+          400,
+          'PK_VALIDATION_FAILED',
+          `Cannot mark '${fieldName}' as Primary Key: duplicate values found (e.g. ${examples}). A PK field must have unique values.`
+        );
+      }
+    } catch (err: any) {
+      if (err instanceof AppError) throw err;
+      console.warn('[SyncService] PK validation query failed:', err.message);
+    }
+  }
+
+  /**
+   * Validate that the FK target field exists and is marked as a Primary Key.
+   */
+  static async validateForeignKeyTarget(
+    targetCollectionId: string,
+    targetFieldId: string
+  ): Promise<void> {
+    const targetColl = await CollectionMetadata.findById(targetCollectionId).lean();
+    if (!targetColl) {
+      throw new AppError(400, 'FK_VALIDATION_FAILED', 'Target collection does not exist');
+    }
+
+    const targetField = await FieldMetadata.findById(targetFieldId).lean();
+    if (!targetField) {
+      throw new AppError(400, 'FK_VALIDATION_FAILED', 'Target field does not exist');
+    }
+
+    if (String(targetField.collectionId) !== String(targetCollectionId)) {
+      throw new AppError(400, 'FK_VALIDATION_FAILED', 'Target field does not belong to the selected target collection');
+    }
+
+    if (!targetField.isPrimaryKey) {
+      throw new AppError(
+        400,
+        'FK_VALIDATION_FAILED',
+        `FK target field '${targetField.name}' is not a Primary Key in '${targetColl.name}'. A Foreign Key must reference a Primary Key field.`
+      );
+    }
+  }
+
+  /**
+   * Validate referential integrity: all non-null values in the source field
+   * must exist in the target collection's PK field.
+   */
+  static async validateForeignKeyIntegrity(
+    sourceCollectionId: string | mongoose.Types.ObjectId,
+    fieldName: string,
+    targetCollectionId: string | mongoose.Types.ObjectId,
+    targetFieldName: string
+  ): Promise<void> {
+    const sourceColl = await CollectionMetadata.findById(sourceCollectionId).lean();
+    const targetColl = await CollectionMetadata.findById(targetCollectionId).lean();
+    if (!sourceColl || !targetColl) return;
+
+    const db = (FieldMetadata.db as any).db;
+    if (!db) return; // Skip if no direct DB access
+
+    try {
+      // Get distinct non-null values from source field
+      const sourceValues: any[] = await db.collection(sourceColl.name)
+        .distinct(fieldName, { [fieldName]: { $ne: null, $exists: true } });
+
+      if (sourceValues.length === 0) return; // No data to check
+
+      // Get distinct values from target PK field
+      const targetValues: any[] = await db.collection(targetColl.name)
+        .distinct(targetFieldName, { [targetFieldName]: { $ne: null, $exists: true } });
+
+      const targetSet = new Set(targetValues.map(String));
+      const orphaned = sourceValues.filter(v => !targetSet.has(String(v)));
+
+      if (orphaned.length > 0) {
+        const examples = orphaned.slice(0, 3).join(', ');
+        throw new AppError(
+          400,
+          'FK_INTEGRITY_FAILED',
+          `Referential integrity violation: ${orphaned.length} value(s) in '${fieldName}' do not exist in '${targetColl.name}.${targetFieldName}' (e.g. ${examples}).`
+        );
+      }
+    } catch (err: any) {
+      if (err instanceof AppError) throw err;
+      console.warn('[SyncService] FK integrity check failed:', err.message);
     }
   }
 

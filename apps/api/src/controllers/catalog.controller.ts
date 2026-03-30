@@ -88,6 +88,28 @@ export const createField = async (req: Request, res: Response, next: NextFunctio
     // Validate: cannot be both PK and FK
     SyncService.validateNotBothPkAndFk(req.body.isPrimaryKey, req.body.isForeignKey);
 
+    // ── PK data validation: check actual data uniqueness ──
+    if (req.body.isPrimaryKey) {
+      await SyncService.validatePrimaryKeyData(req.body.collectionId, req.body.name);
+    }
+
+    // ── FK validation: target must be PK + referential integrity ──
+    if (req.body.isForeignKey) {
+      if (!req.body.targetCollectionId || !req.body.targetFieldId) {
+        throw new AppError(400, 'FK_VALIDATION_FAILED', 'Foreign Key requires a target collection and target field');
+      }
+      await SyncService.validateForeignKeyTarget(req.body.targetCollectionId, req.body.targetFieldId);
+
+      // Resolve target field name for integrity check
+      const targetField = await FieldMetadata.findById(req.body.targetFieldId).lean();
+      if (targetField) {
+        await SyncService.validateForeignKeyIntegrity(
+          req.body.collectionId, req.body.name,
+          req.body.targetCollectionId, targetField.name
+        );
+      }
+    }
+
     // Auto-derive displayName from field name
     const fieldData = {
       ...req.body,
@@ -162,6 +184,30 @@ export const updateField = async (req: Request, res: Response, next: NextFunctio
     // Validate: cannot be both PK and FK
     SyncService.validateNotBothPkAndFk(newIsPk, newIsFk);
 
+    // ── PK data validation: check actual data uniqueness when turning PK on ──
+    if (newIsPk && !field.isPrimaryKey) {
+      await SyncService.validatePrimaryKeyData(field.collectionId, field.name);
+    }
+
+    // ── FK validation: target must be PK + referential integrity ──
+    if (newIsFk) {
+      const effectiveTargetCollId = req.body.targetCollectionId || (field.targetCollectionId ? String(field.targetCollectionId) : undefined);
+      const effectiveTargetFieldId = req.body.targetFieldId || (field.targetFieldId ? String(field.targetFieldId) : undefined);
+
+      if (effectiveTargetCollId && effectiveTargetFieldId) {
+        await SyncService.validateForeignKeyTarget(effectiveTargetCollId, effectiveTargetFieldId);
+
+        // Resolve target field name for integrity check
+        const targetField = await FieldMetadata.findById(effectiveTargetFieldId).lean();
+        if (targetField) {
+          await SyncService.validateForeignKeyIntegrity(
+            field.collectionId, field.name,
+            effectiveTargetCollId, targetField.name
+          );
+        }
+      }
+    }
+
     // Guard: only custom fields can have manual descriptions updated
     const hasDescriptionUpdate =
       req.body.description !== undefined || req.body.manualDescription !== undefined;
@@ -183,10 +229,10 @@ export const updateField = async (req: Request, res: Response, next: NextFunctio
     // Track source: if manualDescription is being set/cleared, update source accordingly
     if (req.body.manualDescription !== undefined) {
       const isClearing = !req.body.manualDescription || req.body.manualDescription.trim() === '';
-      req.body.descriptionSource = !isClearing 
-        ? 'manual' 
+      req.body.descriptionSource = !isClearing
+        ? 'manual'
         : (field.aiDescription ? 'ai' : 'none');
-      
+
       if (isClearing) req.body.manualDescription = null;
     }
 
@@ -268,7 +314,7 @@ export const generateFieldDescription = async (req: Request, res: Response, next
       collection.module,
     );
 
-    field.aiDescription     = description;
+    field.aiDescription = description;
     if (!field.manualDescription) {
       field.descriptionSource = 'ai';
     }
@@ -289,7 +335,7 @@ export const generateFieldDescription = async (req: Request, res: Response, next
  */
 export const bulkGenerateDescriptions = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const fields = await FieldMetadata.find({ 
+    const fields = await FieldMetadata.find({
       $or: [
         { descriptionSource: 'none' },
         { descriptionSource: 'ai' },
@@ -305,8 +351,8 @@ export const bulkGenerateDescriptions = async (req: Request, res: Response, next
       return;
     }
 
-    let updated   = 0;
-    let failed    = 0;
+    let updated = 0;
+    let failed = 0;
     const errors: string[] = [];
 
     for (const f of fields) {
@@ -346,7 +392,7 @@ export const bulkGenerateDescriptions = async (req: Request, res: Response, next
     );
 
     sendSuccess(res, 200, {
-      total:   fields.length,
+      total: fields.length,
       updated,
       failed,
       ...(errors.length > 0 ? { errors } : {}),

@@ -31,7 +31,15 @@ export const createFieldSchema = z.object({
     relationshipLabel: z.string().optional(),
     relationshipType: z.enum(['one-to-one', 'one-to-many', 'many-to-one']).optional(),
     manualDescription: z.string().optional()
-  })
+  }).refine(
+    (data) => {
+      if (data.isForeignKey) {
+        return !!data.targetCollectionId && !!data.targetFieldId;
+      }
+      return true;
+    },
+    { message: 'Foreign Key requires both a target collection and a target field', path: ['targetCollectionId'] }
+  )
 });
 
 export const updateFieldSchema = z.object({
@@ -49,5 +57,12 @@ export const updateFieldSchema = z.object({
     targetFieldId: z.string().nullable().optional(),
     relationshipLabel: z.string().nullable().optional(),
     relationshipType: z.enum(['one-to-one', 'one-to-many', 'many-to-one']).nullable().optional(),
-  })
+  }).refine(
+    (data) => {
+      // Relaxed for partial updates: the UI toggles the flag before selecting targets.
+      // Controller logic handles missing targets gracefully.
+      return true;
+    },
+    { message: 'Foreign Key requires both a target collection and a target field', path: ['targetCollectionId'] }
+  )
 });

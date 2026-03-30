@@ -5,6 +5,8 @@ import { Relationship } from '../models/relationship.model';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { ActivityService } from '../services/activity.service';
+import { CollectionMetadata } from '../models/collectionMetadata.model';
+import { FieldMetadata } from '../models/fieldMetadata.model';
 
 export const getGraph = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -15,6 +17,27 @@ export const getGraph = async (req: Request, res: Response, next: NextFunction) 
 
 export const createRelationship = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { sourceCollection, targetCollection, sourceField, targetField } = req.body;
+
+    // ── Validation: Resolve Names to IDs and Check Integrity ──
+    const sColl = await CollectionMetadata.findOne({ name: sourceCollection }).lean();
+    const tColl = await CollectionMetadata.findOne({ name: targetCollection }).lean();
+    if (!sColl || !tColl) {
+      throw new AppError(400, 'VALIDATION_FAILED', 'Source or Target collection not found');
+    }
+
+    const sField = await FieldMetadata.findOne({ collectionId: sColl._id, name: sourceField }).lean();
+    const tField = await FieldMetadata.findOne({ collectionId: tColl._id, name: targetField }).lean();
+    if (!sField || !tField) {
+      throw new AppError(400, 'VALIDATION_FAILED', 'Source or Target field not found');
+    }
+
+    // 1. Target must be PK
+    await SyncService.validateForeignKeyTarget(String(tColl._id), String(tField._id));
+
+    // 2. Referential integrity check
+    await SyncService.validateForeignKeyIntegrity(sColl._id, sField.name, tColl._id, tField.name);
+
     const edge = await Relationship.create({ ...req.body, isAutoDetected: false });
 
     // Sync → Data Catalog: mark source field as FK
@@ -38,6 +61,25 @@ export const createRelationship = async (req: Request, res: Response, next: Next
 
 export const updateRelationship = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { sourceCollection, targetCollection, sourceField, targetField } = req.body;
+
+    // ── Validation: Resolve Names to IDs and Check Integrity if changed ──
+    const sColl = await CollectionMetadata.findOne({ name: sourceCollection }).lean();
+    const tColl = await CollectionMetadata.findOne({ name: targetCollection }).lean();
+
+    if (sColl && tColl && sourceField && targetField) {
+      const sField = await FieldMetadata.findOne({ collectionId: sColl._id, name: sourceField }).lean();
+      const tField = await FieldMetadata.findOne({ collectionId: tColl._id, name: targetField }).lean();
+
+      if (sField && tField) {
+        // 1. Target must be PK
+        await SyncService.validateForeignKeyTarget(String(tColl._id), String(tField._id));
+
+        // 2. Referential integrity check
+        await SyncService.validateForeignKeyIntegrity(sColl._id, sField.name, tColl._id, tField.name);
+      }
+    }
+
     const edge = await Relationship.findByIdAndUpdate(req.params.id, req.body, { new: true }).lean();
     if (!edge) throw new AppError(404, 'NOT_FOUND', 'Relationship not found');
 

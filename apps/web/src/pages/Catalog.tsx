@@ -56,6 +56,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
   const [fieldForm, setFieldForm] = useState({ name: '', type: 'string', isCustom: true, isPrimaryKey: false, isForeignKey: false, targetCollectionId: '', targetFieldId: '', relationshipType: 'one-to-many', relationshipLabel: '' });
   const [bulkResult, setBulkResult] = useState<{ total: number; updated: number; failed: number } | null>(null);
   const [knownTags, setKnownTags] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleModule = (mod: string) =>
     setCollapsedModules(prev => prev.includes(mod) ? prev.filter(m => m !== mod) : [...prev, mod]);
@@ -129,7 +130,12 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
       setSelectedField(data);
+      setError(null);
     },
+    onError: (err: any) => {
+      setError(err.message || 'Failed to update field');
+      setTimeout(() => setError(null), 5000);
+    }
   });
 
   const deleteFieldMutation = useMutation({
@@ -157,7 +163,11 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
       setShowFieldModal(false);
+      setError(null);
     },
+    onError: (err: any) => {
+      setError(err.message || 'Failed to create field');
+    }
   });
 
   const createCollMutation = useMutation({
@@ -274,8 +284,6 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                   <span className="bg-amber-100 text-amber-500 rounded p-0.5"><Key size={14} /></span>
                 ) : f.isForeignKey ? (
                   <span className="bg-indigo-100 text-indigo-500 rounded p-0.5"><Key size={14} /></span>
-                ) : f.name.toLowerCase().includes('id') ? (
-                  <Key size={14} className="text-amber-500" />
                 ) : null}
                 {f.name}
                 {f.isPrimaryKey && <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded tracking-wide">PK</span>}
@@ -423,9 +431,11 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                                 onClick={() => handleFieldSelect(f)}
                                 className={`text-left text-xs font-mono flex flex-1 items-center gap-2 py-1.5 px-2 rounded-md transition-colors ${selectedField?._id === f._id ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
                               >
-                                {f.name.toLowerCase().includes('id')
+                                {f.isPrimaryKey
                                   ? <Key size={12} className={selectedField?._id === f._id ? 'text-indigo-500' : 'text-amber-500'} />
-                                  : <Hash size={12} className={selectedField?._id === f._id ? 'text-indigo-400' : 'text-slate-300'} />}
+                                  : f.isForeignKey
+                                    ? <Key size={12} className={selectedField?._id === f._id ? 'text-indigo-500' : 'text-indigo-400'} />
+                                    : <Hash size={12} className={selectedField?._id === f._id ? 'text-indigo-400' : 'text-slate-300'} />}
                                 {f.name}
                               </button>
                             ))}
@@ -445,6 +455,16 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
 
       {/* ── Main content ─────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-12 bg-slate-50/30 relative">
+        {error && (
+          <div className="mb-6 flex items-center gap-3 bg-red-50 border border-red-200 text-red-800 px-5 py-3 rounded-xl text-sm animate-in slide-in-from-top-4 duration-300">
+            <AlertCircle size={18} className="text-red-500 shrink-0" />
+            <span className="font-medium">{error}</span>
+            <button onClick={() => setError(null)} className="ml-auto opacity-50 hover:opacity-100">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {isLoading && (
           <div className="text-indigo-600 animate-pulse font-medium">Evaluating boundaries...</div>
         )}
@@ -626,8 +646,6 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                       <span className="bg-amber-100 text-amber-500 rounded p-1" title="Primary Key"><Key size={24} /></span>
                     ) : selectedField.isForeignKey ? (
                       <span className="bg-indigo-100 text-indigo-500 rounded p-1" title="Foreign Key"><Key size={24} /></span>
-                    ) : selectedField.name.toLowerCase().includes('id') ? (
-                      <Key className="text-amber-500" size={28} />
                     ) : (
                       <Hash className="text-slate-300" size={28} />
                     )}
@@ -712,24 +730,28 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
 
                 <div className="grid grid-cols-2 gap-6 items-start">
                   <div className="flex flex-col gap-4">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" checked={selectedField.isPrimaryKey} onChange={e => {
-                        const val = e.target.checked;
-                        if (val && selectedField.isForeignKey) { alert("Field cannot be both PK and FK"); return; }
-                        updateFieldGeneralMutation.mutate({ id: selectedField._id, isPrimaryKey: val })
-                      }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+                    <label className={`flex items-center gap-3 ${isAdmin ? 'cursor-pointer' : 'opacity-70'}`}>
+                      <input type="checkbox" checked={selectedField.isPrimaryKey}
+                        disabled={!isAdmin}
+                        onChange={e => {
+                          const val = e.target.checked;
+                          if (val && selectedField.isForeignKey) { alert("Field cannot be both PK and FK"); return; }
+                          updateFieldGeneralMutation.mutate({ id: selectedField._id, isPrimaryKey: val });
+                        }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 disabled:opacity-50" />
                       <div>
                         <p className="text-sm font-bold text-slate-700">Primary Key</p>
                         <p className="text-xs text-slate-500">Uniquely identifies records in this collection</p>
                       </div>
                     </label>
 
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" checked={selectedField.isForeignKey} onChange={e => {
-                        const val = e.target.checked;
-                        if (val && selectedField.isPrimaryKey) { alert("Field cannot be both PK and FK"); return; }
-                        updateFieldGeneralMutation.mutate({ id: selectedField._id, isForeignKey: val })
-                      }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+                    <label className={`flex items-center gap-3 ${isAdmin ? 'cursor-pointer' : 'opacity-70'}`}>
+                      <input type="checkbox" checked={selectedField.isForeignKey}
+                        disabled={!isAdmin}
+                        onChange={e => {
+                          const val = e.target.checked;
+                          if (val && selectedField.isPrimaryKey) { alert("Field cannot be both PK and FK"); return; }
+                          updateFieldGeneralMutation.mutate({ id: selectedField._id, isForeignKey: val });
+                        }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 disabled:opacity-50" />
                       <div>
                         <p className="text-sm font-bold text-slate-700">Foreign Key</p>
                         <p className="text-xs text-slate-500">Maps to a primary key in another collection</p>
@@ -752,10 +774,16 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Field</p>
                         <select value={selectedField.targetFieldId || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, targetFieldId: e.target.value })} className="w-full border border-slate-200 rounded p-2 text-sm" disabled={!selectedField.targetCollectionId}>
                           <option value="">-- Select Field --</option>
-                          {targetCollectionDetail?.fields?.map((f: any) => (
-                            <option key={f._id} value={f._id}>{f.name}</option>
+                          {targetCollectionDetail?.fields?.filter((f: any) => f.isPrimaryKey).map((f: any) => (
+                            <option key={f._id} value={f._id}>🔑 {f.name} (PK)</option>
                           ))}
+                          {targetCollectionDetail?.fields && targetCollectionDetail.fields.every((f: any) => !f.isPrimaryKey) && (
+                            <option disabled value="">No PK fields available</option>
+                          )}
                         </select>
+                        {targetCollectionDetail?.fields && targetCollectionDetail.fields.every((f: any) => !f.isPrimaryKey) && (
+                          <p className="text-[10px] text-red-500 mt-1">This collection has no Primary Key. An FK must target a PK.</p>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Relationship Config</p>
@@ -1115,10 +1143,13 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                   </select>
                   <select value={fieldForm.targetFieldId || ''} onChange={e => setFieldForm({ ...fieldForm, targetFieldId: e.target.value })} className="w-full text-sm p-2 border rounded" disabled={!fieldForm.targetCollectionId}>
                     <option value="">-- Target Field --</option>
-                    {formTargetCollectionDetail?.fields?.map((f: any) => (
-                      <option key={f._id} value={f._id}>{f.name}</option>
+                    {formTargetCollectionDetail?.fields?.filter((f: any) => f.isPrimaryKey).map((f: any) => (
+                      <option key={f._id} value={f._id}>🔑 {f.name} (PK)</option>
                     ))}
                   </select>
+                  {fieldForm.targetCollectionId && formTargetCollectionDetail?.fields && formTargetCollectionDetail.fields.every((f: any) => !f.isPrimaryKey) && (
+                    <p className="text-[10px] text-red-500 mt-1">This collection has no Primary Key. An FK must target a PK.</p>
+                  )}
                   <div className="flex gap-2">
                     <select value={fieldForm.relationshipType} onChange={e => setFieldForm({ ...fieldForm, relationshipType: e.target.value })} className="w-1/2 text-sm p-2 border rounded">
                       <option value="one-to-one">One-to-One (1:1)</option>
