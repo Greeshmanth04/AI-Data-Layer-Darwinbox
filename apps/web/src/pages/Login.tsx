@@ -9,7 +9,7 @@ interface LoginProps {
 export default function Login({ onNavigateRegister }: LoginProps) {
   const { login } = useAuth();
   const [email, setEmail] = useState('admin@darwinbox.io');
-  const [password, setPassword] = useState('admin123');
+  const [password, setPassword] = useState('darwinbox123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -37,11 +37,11 @@ export default function Login({ onNavigateRegister }: LoginProps) {
       <div className="bg-white p-10 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 w-full max-w-[420px]">
         <div className="flex justify-center mb-8">
           <div className="flex flex-col items-center">
-             <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-4">
-               <Database size={28} />
-             </div>
-             <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Darwinbox<span className="text-slate-400 font-light ml-0.5">AI</span></h1>
-             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2">Data Layer Engine</p>
+            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-4">
+              <Database size={28} />
+            </div>
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Darwinbox<span className="text-slate-400 font-light ml-0.5">AI</span></h1>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2">Data Layer Engine</p>
           </div>
         </div>
 
@@ -69,10 +69,10 @@ export default function Login({ onNavigateRegister }: LoginProps) {
 
         {onNavigateRegister && (
           <div className="mt-8 text-center bg-slate-50 rounded-lg p-3 border border-slate-100">
-             <p className="text-xs text-slate-500 font-medium tracking-wide">
-               Don't have access?{' '}
-               <button onClick={onNavigateRegister} type="button" className="text-indigo-600 font-bold hover:text-indigo-800 transition-colors">Request Account</button>
-             </p>
+            <p className="text-xs text-slate-500 font-medium tracking-wide">
+              Don't have access?{' '}
+              <button onClick={onNavigateRegister} type="button" className="text-indigo-600 font-bold hover:text-indigo-800 transition-colors">Request Account</button>
+            </p>
           </div>
         )}
       </div>
