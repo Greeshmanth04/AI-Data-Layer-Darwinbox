@@ -105,7 +105,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
     if (searchQuery && searchInputRef.current && document.activeElement !== searchInputRef.current) {
       searchInputRef.current.focus();
     }
-  }, [collectionDetail]);
+  }, [collectionDetail, searchQuery]);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -225,12 +225,12 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
   });
 
   // ── Auto-select first collection ──────────────────────────────────────────
-  const modules = Object.keys(groupedCollections);
+  const modules = React.useMemo(() => Object.keys(groupedCollections), [groupedCollections]);
   useEffect(() => {
     if (modules.length > 0 && groupedCollections[modules[0]]?.length > 0 && !selectedCollId) {
       setSelectedCollId(groupedCollections[modules[0]][0]._id);
     }
-  }, [groupedCollections]);
+  }, [groupedCollections, modules, selectedCollId]);
 
   const standardFields = collectionDetail?.fields?.filter((f: any) => !f.isCustom) || [];
   const customFields = collectionDetail?.fields?.filter((f: any) => f.isCustom) || [];

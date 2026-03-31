@@ -168,6 +168,7 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
         });
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collections.length]); // Intentionally binding only to collection.length to preserve XY positions
 
   const pushLayoutState = () => {
@@ -203,7 +204,8 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
       setHistory(h => ({ past: newPast, future: [action, ...h.future] }));
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
     } else if (action.type === 'DELETE_EDGE') {
-      const { _id, ...payload } = action.edge;
+      const payload = { ...action.edge };
+      delete payload._id;
       const created = await apiClient('/relationships', { method: 'POST', body: JSON.stringify(payload) });
       setHistory(h => ({ past: newPast, future: [{ ...action, edge: created }, ...h.future] }));
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
@@ -214,7 +216,8 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
     } else if (action.type === 'DELETE_EDGES') {
       const newEdges: any[] = [];
       for (const edge of action.edges) {
-        const { _id, ...payload } = edge;
+        const payload = { ...edge };
+        delete payload._id;
         const created = await apiClient('/relationships', { method: 'POST', body: JSON.stringify(payload) });
         if (created) newEdges.push(created);
       }
@@ -244,7 +247,8 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
       setNodes(nds => nds.map(n => ({ ...n, position: action.futurePosition[n.id] || n.position })));
       setHistory(h => ({ past: [...h.past, { ...action, pastPosition: currentPos }], future: newFuture }));
     } else if (action.type === 'ADD_EDGE') {
-      const { _id, ...payload } = action.edge;
+      const payload = { ...action.edge };
+      delete payload._id;
       const created = await apiClient('/relationships', { method: 'POST', body: JSON.stringify(payload) });
       setHistory(h => ({ past: [...h.past, { ...action, edge: created }], future: newFuture }));
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
@@ -255,7 +259,8 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
     } else if (action.type === 'ADD_EDGES') {
       const newEdges: any[] = [];
       for (const edge of action.edges) {
-        const { _id, ...payload } = edge;
+        const payload = { ...edge };
+        delete payload._id;
         const created = await apiClient('/relationships', { method: 'POST', body: JSON.stringify(payload) });
         if (created) newEdges.push(created);
       }

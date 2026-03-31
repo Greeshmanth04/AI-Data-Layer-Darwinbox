@@ -17,7 +17,7 @@ describe('PermissionService Resolution Core', () => {
 
   test('Case 1: Platform Admin completely bypasses checks unconditionally', async () => {
     (User.findById as jest.Mock).mockResolvedValue({ role: 'platform_admin' });
-    const resolved = await PermissionService.resolveCollectionPermissions('a', 'employees');
+    const resolved = (await PermissionService.resolveCollectionPermissions('a', 'employees'))!;
     expect(resolved.canRead).toBe(true);
     expect(resolved.rowFilters.length).toBe(0);
     expect(resolved.effectiveFields.allowed.length).toBe(0);
@@ -29,7 +29,7 @@ describe('PermissionService Resolution Core', () => {
     (Group.find as jest.Mock).mockResolvedValue([]);
 
     await expect(PermissionService.resolveCollectionPermissions('u1', 'employees'))
-      .rejects.toThrow(/COLLECTION_ACCESS_DENIED/);
+      .rejects.toThrow(/Access denied/);
   });
 
   test('Case 3: Single group allows reading without row filters equates to full row access', async () => {
@@ -39,7 +39,7 @@ describe('PermissionService Resolution Core', () => {
       permissions: [{ collectionName: 'employees', canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] }]
     }]);
 
-    const resolved = await PermissionService.resolveCollectionPermissions('u1', 'employees');
+    const resolved = (await PermissionService.resolveCollectionPermissions('u1', 'employees'))!;
     expect(resolved.canRead).toBe(true);
     expect(resolved.rowFilters).toEqual([{}]);
   });
@@ -51,7 +51,7 @@ describe('PermissionService Resolution Core', () => {
       permissions: [{ collectionName: 'employees', canRead: true, allowedFields: [], deniedFields: ['salary'], rowFilters: [] }]
     }]);
 
-    const resolved = await PermissionService.resolveCollectionPermissions('u1', 'employees');
+    const resolved = (await PermissionService.resolveCollectionPermissions('u1', 'employees'))!;
     expect(resolved.effectiveFields.allowed).toEqual([]);
     expect(resolved.effectiveFields.denied).toEqual(['salary']);
   });
@@ -63,7 +63,7 @@ describe('PermissionService Resolution Core', () => {
       { permissions: [{ collectionName: 'employees', canRead: true, allowedFields: ['name'], deniedFields: [], rowFilters: [] }] },
       { permissions: [{ collectionName: 'employees', canRead: true, allowedFields: ['email'], deniedFields: [], rowFilters: [] }] }
     ]);
-    const resolved = await PermissionService.resolveCollectionPermissions('u1', 'employees');
+    const resolved = (await PermissionService.resolveCollectionPermissions('u1', 'employees'))!;
     expect(resolved.effectiveFields.allowed).toContain('name');
     expect(resolved.effectiveFields.allowed).toContain('email');
   });
@@ -75,30 +75,30 @@ describe('PermissionService Resolution Core', () => {
       { permissions: [{ collectionName: 'employees', canRead: true, allowedFields: ['name', 'salary'], deniedFields: [], rowFilters: [] }] },
       { permissions: [{ collectionName: 'employees', canRead: true, allowedFields: [], deniedFields: ['salary'], rowFilters: [] }] }
     ]);
-    const resolved = await PermissionService.resolveCollectionPermissions('u1', 'employees');
+    const resolved = (await PermissionService.resolveCollectionPermissions('u1', 'employees'))!;
     const projection = PermissionService.buildMongoProjection(resolved);
-    // In whitelist mode, denied fields are filtered out (no mixed 1/0 projections)
-    expect(projection['salary']).toBeUndefined();
-    expect(projection['name']).toBe(1);
+    // In blacklist mode (due to allowed fields being empty in group 2), denied fields are explicitly 0
+    expect(projection['salary']).toBe(0);
+    expect(projection['name']).toBeUndefined();
   });
 
   test('Case 7: OR logic combining disparate row filters gracefully across groups', async () => {
     (User.findById as jest.Mock).mockResolvedValue(mockUserBase);
     (UserGroup.find as jest.Mock).mockResolvedValue([{ groupId: 'g1' }, { groupId: 'g2' }]);
     (Group.find as jest.Mock).mockResolvedValue([
-      { permissions: [{ collectionName: 'emps', canRead: true, rowFilters: [{ field: 'reg', operator: 'equals', value: 'US' }] }] },
-      { permissions: [{ collectionName: 'emps', canRead: true, rowFilters: [{ field: 'dept', operator: 'equals', value: 'HR' }] }] }
+      { permissions: [{ collectionName: 'emps', canRead: true, rowFilters: [{ field: 'reg', operator: 'eq', value: 'US' }] }] },
+      { permissions: [{ collectionName: 'emps', canRead: true, rowFilters: [{ field: 'dept', operator: 'eq', value: 'HR' }] }] }
     ]);
 
-    const resolved = await PermissionService.resolveCollectionPermissions('u1', 'emps');
+    const resolved = (await PermissionService.resolveCollectionPermissions('u1', 'emps'))!;
     const query = PermissionService.buildMongoQuery(resolved);
-    expect(query).toEqual({ $or: [{ reg: 'US' }, { dept: 'HR' }] });
+    expect(query).toEqual({ $or: [{ reg: { $eq: 'US' } }, { dept: { $eq: 'HR' } }] });
   });
 
   test('Case 8: assertFieldsAccessible throws 403 FIELD_ACCESS_DENIED if metric attempts fetching denied component', () => {
     const resolved: any = { effectiveFields: { allowed: [], denied: ['salary'] } };
     expect(() => PermissionService.assertFieldsAccessible(['name', 'salary'], resolved))
-      .toThrow(/FIELD_ACCESS_DENIED/);
+      .toThrow(/Access to field 'salary' is denied/);
   });
 
   test('Case 9: buildMongoQuery returns {} if ANY overlapping group provides an empty row filter dict', () => {
@@ -113,14 +113,14 @@ describe('PermissionService Resolution Core', () => {
       {
         permissions: [{
           collectionName: 'emps', canRead: true, rowFilters: [
-            { field: 'reg', operator: 'equals', value: 'US' },
-            { field: 'stat', operator: 'equals', value: 'Active' }
+            { field: 'reg', operator: 'eq', value: 'US' },
+            { field: 'stat', operator: 'eq', value: 'Active' }
           ]
         }]
       }
     ]);
-    const resolved = await PermissionService.resolveCollectionPermissions('u1', 'emps');
+    const resolved = (await PermissionService.resolveCollectionPermissions('u1', 'emps'))!;
     const query = PermissionService.buildMongoQuery(resolved);
-    expect(query).toEqual({ "$or": [{ "$and": [{ reg: "US" }, { stat: "Active" }] }] });
+    expect(query).toEqual({ "$or": [{ "$and": [{ reg: { "$eq": "US" } }, { stat: { "$eq": "Active" } }] }] });
   });
 });

@@ -78,23 +78,3 @@ export const enforceCollectionAccess = (collectionNameOrParam?: string) => {
   };
 };
 
-/**
- * assertFieldAccess — inline middleware to check specific requested fields.
- * Use on routes that accept explicit field lists (e.g. query params or body).
- */
-export const assertFieldAccess = (getFields: (req: Request) => string[]) => {
-  return (req: Request, _res: Response, next: NextFunction) => {
-    if (!req.permissions) return next();                      // No context = no check
-    if (req.user?.role === 'platform_admin') return next();   // Superadmins bypass
-
-    try {
-      const fields = getFields(req);
-      if (fields.length > 0) {
-        PermissionService.assertFieldsAccessible(fields, req.permissions);
-      }
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
-};

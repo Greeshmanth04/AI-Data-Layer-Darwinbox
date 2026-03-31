@@ -7,13 +7,14 @@ import { AppError } from '../utils/errors';
 export class CatalogService {
 
   static async getPermittedCollections(userId: string) {
+    const userCtx = await PermissionService.getResolutionContext(userId);
     const collections = await CollectionMetadata.find().lean();
     const permitted = [];
     const allFields = await FieldMetadata.find().lean();
 
     for (const coll of collections) {
       // Layer 1: Collection access
-      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, false);
+      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, false, userCtx);
       if (resolved && resolved.canRead) {
         const { allowed, denied } = resolved.effectiveFields;
         const collFields = allFields.filter(f => String(f.collectionId) === String(coll._id));
@@ -52,7 +53,8 @@ export class CatalogService {
     if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
 
     // Layer 1: Collection access check (throwOnDeny = true — server enforces, never the client)
-    const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, true);
+    const userCtx = await PermissionService.getResolutionContext(userId);
+    const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, true, userCtx);
     if (!resolved || !resolved.canRead) {
       throw new AppError(403, 'COLLECTION_ACCESS_DENIED', 'You do not have permission to view this collection');
     }
@@ -62,15 +64,7 @@ export class CatalogService {
 
     const filter: any = { collectionId: collId };
     if (searchQuery) {
-      const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(escaped, 'i');
-      filter.$or = [
-        { name: regex },
-        { displayName: regex },
-        { aiDescription: regex },
-        { manualDescription: regex },
-        { tags: regex },
-      ];
+      filter.$text = { $search: searchQuery };
     }
 
     const fields = await FieldMetadata.find(filter).lean();
@@ -128,7 +122,8 @@ export class CatalogService {
     const collection = field.collectionId as any;
 
     // Layer 1: Collection access
-    const resolved = await PermissionService.resolveCollectionPermissions(userId, collection.name, true);
+    const userCtx = await PermissionService.getResolutionContext(userId);
+    const resolved = await PermissionService.resolveCollectionPermissions(userId, collection.name, true, userCtx);
     if (!resolved || !resolved.canRead) {
       throw new AppError(403, 'COLLECTION_ACCESS_DENIED', 'Access denied to parent collection');
     }
@@ -166,6 +161,7 @@ export class CatalogService {
   }
 
   static async getDictionary(userId: string) {
+    const userCtx = await PermissionService.getResolutionContext(userId);
     const collections = await CollectionMetadata.find().lean();
     const allFields = await FieldMetadata.find().lean();
 
@@ -173,7 +169,7 @@ export class CatalogService {
 
     for (const coll of collections) {
       // Layer 1: Collection access
-      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, false);
+      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, false, userCtx);
       if (resolved && resolved.canRead) {
         const { allowed, denied } = resolved.effectiveFields;
         const collFields = allFields.filter(f => String(f.collectionId) === String(coll._id));

@@ -14,6 +14,15 @@ export interface ResolvedPermissions {
 
 export class PermissionService {
 
+  static async getResolutionContext(userId: string) {
+    const user = await User.findById(userId);
+    if (!user) throw new AppError(401, 'UNAUTHORIZED', 'User not found');
+    const userGroups = await UserGroup.find({ userId });
+    const groupIds = userGroups.map(ug => ug.groupId);
+    const groups = await Group.find({ _id: { $in: groupIds } });
+    return { user, groups };
+  }
+
   /**
    * Translates a single RowFilter into a MongoDB query clause.
    * Supports all 8 operators defined in the spec:
@@ -57,9 +66,10 @@ export class PermissionService {
   static async resolveCollectionPermissions(
     userId: string,
     collectionName: string,
-    throwOnDeny: boolean = true
+    throwOnDeny: boolean = true,
+    ctx?: { user: any, groups: any[] }
   ): Promise<ResolvedPermissions | null> {
-    const user = await User.findById(userId);
+    const user = ctx ? ctx.user : await User.findById(userId);
     if (!user) throw new AppError(401, 'UNAUTHORIZED', 'User not found');
 
     // platform_admin bypasses all permission checks — full unrestricted access
@@ -67,9 +77,11 @@ export class PermissionService {
       return { canRead: true, effectiveFields: { allowed: [], denied: [] }, rowFilters: [] };
     }
 
-    const userGroups = await UserGroup.find({ userId });
-    const groupIds = userGroups.map(ug => ug.groupId);
-    const groups = await Group.find({ _id: { $in: groupIds } });
+    const groups = ctx ? ctx.groups : await (async () => {
+      const userGroups = await UserGroup.find({ userId });
+      const groupIds = userGroups.map(ug => ug.groupId);
+      return Group.find({ _id: { $in: groupIds } });
+    })();
 
     let canRead = false;
     let allowedAll = false;
@@ -80,7 +92,7 @@ export class PermissionService {
     for (const group of groups) {
       if (!group.permissions) continue;
 
-      const perm = group.permissions.find(p => p.collectionName === collectionName);
+      const perm = group.permissions.find((p: any) => p.collectionName === collectionName);
 
       if (perm && perm.canRead) {
         canRead = true;
@@ -89,12 +101,12 @@ export class PermissionService {
         if (!perm.allowedFields || perm.allowedFields.length === 0) {
           allowedAll = true; // at least one group grants all fields
         } else {
-          perm.allowedFields.forEach(f => allowedSet.add(f));
+          perm.allowedFields.forEach((f: string) => allowedSet.add(f));
         }
 
         // Denied fields always apply
         if (perm.deniedFields) {
-          perm.deniedFields.forEach(f => deniedSet.add(f));
+          perm.deniedFields.forEach((f: string) => deniedSet.add(f));
         }
 
         // Row-level: collect each group's combined filter as an $or branch

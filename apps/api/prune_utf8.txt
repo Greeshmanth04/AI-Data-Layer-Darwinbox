@@ -1,0 +1,12 @@
+﻿\src\middleware\enforcePermissions.ts:85 - assertFieldAccess
+\src\models\activityLog.model.ts:3 - IActivityLog (used in module)
+\src\models\collectionMetadata.model.ts:3 - ICollectionMetadata (used in module)
+\src\models\group.model.ts:3 - RowFilterOperator (used in module)
+\src\models\group.model.ts:11 - ICollectionPermission (used in module)
+\src\models\group.model.ts:19 - IGroup (used in module)
+\src\models\metricDefinition.model.ts:3 - IMetricPreview (used in module)
+\src\models\metricDefinition.model.ts:9 - IMetricDefinition (used in module)
+\src\models\relationship.model.ts:3 - IRelationship (used in module)
+\src\models\user.model.ts:3 - IUser (used in module)
+\src\models\userGroup.model.ts:3 - IUserGroup (used in module)
+\src\services\metric.service.ts:6 - ParsedToken (used in module)
