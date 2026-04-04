@@ -431,52 +431,52 @@ export default function Metrics() {
       {/* Create / Edit Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white p-7 rounded-2xl w-[560px] shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-white p-8 rounded-[32px] w-[560px] shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto scrollbar-hide">
+            <div className="flex justify-between items-center mb-6 pl-2 pr-1">
               <h2 className="text-lg font-bold text-slate-900">{editingMetric ? 'Edit Metric' : 'Create New Metric'}</h2>
-              <button onClick={() => { setShowForm(false); setEditingMetric(null); }} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-md transition"><X size={18} /></button>
+              <button onClick={() => { setShowForm(false); setEditingMetric(null); }} className="text-slate-400 hover:bg-slate-100 p-2 rounded-full transition"><X size={18} /></button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Name</label>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider pl-4">Name</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Total Headcount"
-                  className="w-full border border-slate-200 p-2.5 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                  className="w-full border border-slate-200 py-2.5 px-4 rounded-full text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Description</label>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider pl-4">Description</label>
                 <input
                   type="text"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="What does this metric measure?"
-                  className="w-full border border-slate-200 p-2.5 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                  className="w-full border border-slate-200 py-2.5 px-4 rounded-full text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                 />
               </div>
 
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Category</label>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider pl-4">Category</label>
                   <input
                     type="text"
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     placeholder="e.g. Workforce"
-                    className="w-full border border-slate-200 p-2.5 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                    className="w-full border border-slate-200 py-2.5 px-4 rounded-full text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Base Collection</label>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider pl-4">Base Collection</label>
                   <select
                     value={formData.baseCollection}
                     onChange={(e) => setFormData({ ...formData, baseCollection: e.target.value })}
-                    className="w-full border border-slate-200 p-2.5 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                    className="w-full border border-slate-200 py-2.5 px-4 rounded-full text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none appearance-none"
                   >
                     <option value="" disabled>Select collection</option>
                     {collections.map((c: any) => <option key={c._id} value={c.slug}>{c.name}</option>)}
@@ -485,24 +485,23 @@ export default function Metrics() {
               </div>
 
               {/* ── NL Formula Generator ── */}
-              <div className="bg-gradient-to-r from-indigo-50/80 via-violet-50/60 to-purple-50/40 border border-indigo-200/60 rounded-xl p-4">
-                <label className="block text-[11px] font-bold text-indigo-600 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+              <div className="bg-gradient-to-r from-indigo-50/80 via-violet-50/60 to-purple-50/40 border border-indigo-200/60 rounded-3xl p-5">
+                <label className="block text-[11px] font-bold text-indigo-600 mb-3 uppercase tracking-wider flex items-center gap-1.5 pl-2">
                   <Sparkles size={11} /> AI Formula Generator
                 </label>
-                <p className="text-[10px] text-slate-500 mb-2.5 font-medium">Describe what you want to measure in plain English and we'll generate the formula for you.</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={nlPrompt}
                     onChange={(e) => setNlPrompt(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGenerateFormula(); } }}
-                    placeholder='e.g. "Count all active employees" or "Average salary in Engineering"'
-                    className="flex-1 border border-indigo-200 bg-white p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none placeholder:text-slate-400"
+                    placeholder='e.g. "Count all active employees" or "Average salary..."'
+                    className="flex-1 border border-indigo-200 bg-white py-2.5 px-4 rounded-full text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none placeholder:text-slate-400"
                   />
                   <button
                     onClick={handleGenerateFormula}
                     disabled={nlGenerating || !nlPrompt.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm border border-indigo-700 disabled:opacity-50 shrink-0"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 shadow-sm border border-indigo-700 disabled:opacity-50 shrink-0"
                   >
                     {nlGenerating ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
                     {nlGenerating ? 'Generating...' : 'Generate'}
@@ -528,7 +527,7 @@ export default function Metrics() {
               </div>
 
               <div>
-                <div className="flex justify-between items-center mb-1.5">
+                <div className="flex justify-between items-center mb-1.5 pl-4 px-2">
                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Formula Directive</label>
                    <button onClick={() => setIsGuideOpen(true)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
                       <BookOpen size={10} /> Syntax Guide
@@ -539,11 +538,8 @@ export default function Metrics() {
                   onChange={(val) => { setFormData({ ...formData, formula: val }); if (nlSource) setNlSource(null); }}
                   placeholder='e.g. COUNT(employees WHERE status = "Active")'
                   rows={3}
-                  className="w-full border border-slate-200 p-3 rounded-lg text-[13px] font-mono text-indigo-700 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none"
+                  className="w-full border border-slate-200 py-3 px-5 rounded-3xl text-[13px] font-mono text-indigo-700 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                  Supports: COUNT, SUM, AVG, MIN, MAX (+ cross-collection WHEREs).
-                </p>
               </div>
             </div>
 
@@ -554,11 +550,11 @@ export default function Metrics() {
             )}
 
             <div className="flex justify-end gap-2 mt-8">
-              <button onClick={() => { setShowForm(false); setEditingMetric(null); }} className="px-5 py-2 text-sm text-slate-500 font-bold hover:bg-slate-50 rounded-lg transition">Cancel</button>
+              <button onClick={() => { setShowForm(false); setEditingMetric(null); }} className="px-6 py-2.5 text-sm text-slate-500 font-bold hover:bg-slate-50 rounded-full transition">Cancel</button>
               <button
                 onClick={handleSubmit}
                 disabled={isMutating || !formData.name || !formData.formula || !formData.baseCollection}
-                className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg shadow-sm border border-indigo-700 hover:bg-indigo-700 disabled:opacity-50 transition"
+                className="px-8 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-full shadow-sm border border-indigo-700 hover:bg-indigo-700 disabled:opacity-50 transition"
               >
                 {isMutating ? 'Saving...' : editingMetric ? 'Save Changes' : 'Create Metric'}
               </button>
