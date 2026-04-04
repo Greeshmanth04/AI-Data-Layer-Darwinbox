@@ -1,4 +1,4 @@
-import { X, BookOpen, Calculator, FunctionSquare, AlertTriangle, Lightbulb } from 'lucide-react';
+import { X, BookOpen, Calculator, FunctionSquare, AlertTriangle, Lightbulb, Sparkles } from 'lucide-react';
 
 interface FormulaGuideProps {
   isOpen: boolean;
@@ -120,6 +120,57 @@ export function FormulaGuide({ isOpen, onClose }: FormulaGuideProps) {
             </ul>
           </section>
 
+          {/* Section 5: Natural Language Prompts */}
+          <section className="bg-gradient-to-r from-indigo-50/60 via-violet-50/40 to-purple-50/30 p-5 rounded-xl border border-indigo-200/50">
+            <h3 className="text-sm font-bold text-indigo-800 flex items-center gap-2 mb-3">
+              <Sparkles size={16} className="text-indigo-500" /> AI Formula Generator — Natural Language Prompts
+            </h3>
+            <p className="text-[13px] text-slate-600 mb-4 leading-relaxed">
+              Instead of writing formulas manually, you can describe what you want to measure in plain English. The AI generator will convert your description into a valid formula using your actual data schema.
+            </p>
+
+            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">How to Write Effective Prompts</h4>
+            <ul className="text-[13px] text-slate-600 space-y-1.5 list-disc pl-5 font-medium mb-4">
+              <li>Be specific about the <b>action</b>: "count", "sum", "average", "minimum", "maximum"</li>
+              <li>Mention the <b>collection</b> name: "employees", "payroll", etc.</li>
+              <li>Include <b>field names</b> for numeric aggregations: "salary", "net_salary"</li>
+              <li>Add <b>filters</b> naturally: "where status is Active", "in Engineering department"</li>
+            </ul>
+
+            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Example Mappings</h4>
+            <div className="space-y-2 mb-4">
+              <div className="bg-white/80 border border-slate-200/60 p-3 rounded-lg flex items-start gap-3">
+                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-100 px-1.5 py-0.5 rounded shrink-0 mt-0.5">PROMPT</span>
+                <div className="min-w-0">
+                  <p className="text-[13px] text-slate-700 font-medium">"Count all active employees"</p>
+                  <code className="text-[12px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded mt-1 inline-block font-bold">→ COUNT(employees WHERE status = "Active")</code>
+                </div>
+              </div>
+              <div className="bg-white/80 border border-slate-200/60 p-3 rounded-lg flex items-start gap-3">
+                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-100 px-1.5 py-0.5 rounded shrink-0 mt-0.5">PROMPT</span>
+                <div className="min-w-0">
+                  <p className="text-[13px] text-slate-700 font-medium">"Average salary of employees in Engineering"</p>
+                  <code className="text-[12px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded mt-1 inline-block font-bold">→ AVG(employees.salary WHERE department = "Engineering")</code>
+                </div>
+              </div>
+              <div className="bg-white/80 border border-slate-200/60 p-3 rounded-lg flex items-start gap-3">
+                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-100 px-1.5 py-0.5 rounded shrink-0 mt-0.5">PROMPT</span>
+                <div className="min-w-0">
+                  <p className="text-[13px] text-slate-700 font-medium">"Total payroll net salary"</p>
+                  <code className="text-[12px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded mt-1 inline-block font-bold">→ SUM(payroll.net_salary)</code>
+                </div>
+              </div>
+            </div>
+
+            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Tips & Limitations</h4>
+            <ul className="text-[13px] text-slate-500 space-y-1.5 list-disc pl-5 font-medium">
+              <li>The AI uses your actual collection and field names — invalid references are caught automatically.</li>
+              <li>Generated formulas are always editable — tweak them in the Formula Directive field after generation.</li>
+              <li>For complex multi-aggregate formulas (e.g., ratios), you may need to refine the generated result.</li>
+              <li>If the AI is unavailable, a keyword-based heuristic generates a best-effort formula.</li>
+            </ul>
+          </section>
+
         </div>
         
         {/* Footer */}
@@ -132,3 +183,4 @@ export function FormulaGuide({ isOpen, onClose }: FormulaGuideProps) {
     </div>
   );
 }
+

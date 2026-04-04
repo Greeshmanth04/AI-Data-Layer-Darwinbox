@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Play, Plus, Pencil, Trash2, X, CheckCircle, AlertTriangle, Clock, FlaskConical, Search, Calculator, FileText, BookOpen } from 'lucide-react';
+import { Play, Plus, Pencil, Trash2, X, CheckCircle, AlertTriangle, Clock, FlaskConical, Search, Calculator, FileText, BookOpen, Sparkles, Wand2, Loader2 } from 'lucide-react';
 import { FormulaGuide } from '../components/FormulaGuide';
 import { FormulaAutocomplete } from '../components/FormulaAutocomplete';
 
@@ -26,6 +26,12 @@ export default function Metrics() {
 
   // Confirm delete
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // NL formula generation state
+  const [nlPrompt, setNlPrompt] = useState('');
+  const [nlGenerating, setNlGenerating] = useState(false);
+  const [nlError, setNlError] = useState('');
+  const [nlSource, setNlSource] = useState<'ai' | 'heuristic' | null>(null);
 
   // Per-metric preview/validate results
   const [metricResults, setMetricResults] = useState<Record<string, { result?: number; error?: string; validating?: boolean; previewing?: boolean }>>({});
@@ -145,6 +151,7 @@ export default function Metrics() {
   const openCreateForm = () => {
     setEditingMetric(null);
     setFormData({ name: '', formula: '', baseCollection: '', description: '', category: '' });
+    setNlPrompt(''); setNlError(''); setNlSource(null);
     setShowForm(true);
   };
 
@@ -157,7 +164,34 @@ export default function Metrics() {
       description: metric.description || '',
       category: metric.category || ''
     });
+    setNlPrompt(''); setNlError(''); setNlSource(null);
     setShowForm(true);
+  };
+
+  const handleGenerateFormula = async () => {
+    if (!nlPrompt.trim() || nlGenerating) return;
+    setNlGenerating(true);
+    setNlError('');
+    setNlSource(null);
+    try {
+      const res = await fetch('/api/v1/metrics/generate-formula', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ prompt: nlPrompt.trim() })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message || 'Generation failed');
+      const { formula, source, valid, validationError } = json.data;
+      setFormData(prev => ({ ...prev, formula }));
+      setNlSource(source);
+      if (!valid && validationError) {
+        setNlError(`Generated formula may need adjustment: ${validationError}`);
+      }
+    } catch (err: any) {
+      setNlError(err.message || 'Failed to generate formula');
+    } finally {
+      setNlGenerating(false);
+    }
   };
 
   const handleSubmit = () => {
@@ -366,8 +400,7 @@ export default function Metrics() {
                {/* History Panel */}
                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 overflow-hidden flex flex-col">
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4"><Clock size={14} className="text-indigo-500" /> Computation History</h3>
-                  <div className="flex-1 overflow-y-auto -mx-2">
-                     {selectedMetric.previews && selectedMetric.previews.length > 0 ? (
+                  <div className="flex-1 overflow-y-auto -mx-2">                     {selectedMetric.history && selectedMetric.history.length > 0 ? (
                         <table className="w-full text-left text-xs">
                            <thead className="text-[10px] text-slate-400 uppercase tracking-widest sticky top-0 bg-white">
                               <tr>
@@ -376,15 +409,15 @@ export default function Metrics() {
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-slate-100">
-                              {selectedMetric.previews.map((p: any, idx: number) => (
+                              {selectedMetric.history.map((p: any, idx: number) => (
                                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-2 text-slate-500 font-medium">{new Date(p.evaluatedAt).toLocaleString()}</td>
-                                    <td className="p-2 text-right font-bold text-slate-800">{p.result.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                                    <td className="p-2 text-slate-500 font-medium">{new Date(p.timestamp).toLocaleString()}</td>
+                                    <td className="p-2 text-right font-bold text-slate-800">{p.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                                  </tr>
                               ))}
                            </tbody>
                         </table>
-                     ) : (
+                      ) : (
                         <div className="h-full flex items-center justify-center text-[11px] text-slate-400 italic">No historical runs recorded.</div>
                      )}
                   </div>
@@ -398,7 +431,7 @@ export default function Metrics() {
       {/* Create / Edit Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white p-7 rounded-2xl w-[480px] shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white p-7 rounded-2xl w-[560px] shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-bold text-slate-900">{editingMetric ? 'Edit Metric' : 'Create New Metric'}</h2>
               <button onClick={() => { setShowForm(false); setEditingMetric(null); }} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-md transition"><X size={18} /></button>
@@ -451,6 +484,49 @@ export default function Metrics() {
                 </div>
               </div>
 
+              {/* ── NL Formula Generator ── */}
+              <div className="bg-gradient-to-r from-indigo-50/80 via-violet-50/60 to-purple-50/40 border border-indigo-200/60 rounded-xl p-4">
+                <label className="block text-[11px] font-bold text-indigo-600 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles size={11} /> AI Formula Generator
+                </label>
+                <p className="text-[10px] text-slate-500 mb-2.5 font-medium">Describe what you want to measure in plain English and we'll generate the formula for you.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={nlPrompt}
+                    onChange={(e) => setNlPrompt(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGenerateFormula(); } }}
+                    placeholder='e.g. "Count all active employees" or "Average salary in Engineering"'
+                    className="flex-1 border border-indigo-200 bg-white p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none placeholder:text-slate-400"
+                  />
+                  <button
+                    onClick={handleGenerateFormula}
+                    disabled={nlGenerating || !nlPrompt.trim()}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm border border-indigo-700 disabled:opacity-50 shrink-0"
+                  >
+                    {nlGenerating ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
+                    {nlGenerating ? 'Generating...' : 'Generate'}
+                  </button>
+                </div>
+                {nlError && (
+                  <div className="mt-2 p-2 bg-red-50 text-red-600 border border-red-200 rounded-lg text-[11px] font-medium flex items-start gap-1.5">
+                    <AlertTriangle size={12} className="shrink-0 mt-0.5" /> {nlError}
+                  </div>
+                )}
+                {nlSource && !nlError && (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      nlSource === 'ai'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}>
+                      {nlSource === 'ai' ? '✨ AI Generated' : '⚡ Heuristic Match'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">Formula auto-filled below — feel free to edit.</span>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <div className="flex justify-between items-center mb-1.5">
                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Formula Directive</label>
@@ -460,7 +536,7 @@ export default function Metrics() {
                 </div>
                 <FormulaAutocomplete
                   value={formData.formula}
-                  onChange={(val) => setFormData({ ...formData, formula: val })}
+                  onChange={(val) => { setFormData({ ...formData, formula: val }); if (nlSource) setNlSource(null); }}
                   placeholder='e.g. COUNT(employees WHERE status = "Active")'
                   rows={3}
                   className="w-full border border-slate-200 p-3 rounded-lg text-[13px] font-mono text-indigo-700 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none"

@@ -135,7 +135,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
             <p className="text-xs text-gray-500 mt-1">Audit log of your last 20 automated or manual actions.</p>
           </div>
           <div className="p-0 overflow-y-auto flex-1 relative">
-            {activities?.map((act: any) => (
+            {activities?.items?.map((act: any) => (
                <div key={act._id} className="p-4 border-b border-gray-50 flex items-start gap-4 hover:bg-gray-50 transition-colors">
                  <div className="p-2 bg-indigo-50 text-indigo-500 rounded-lg mt-0.5 shrink-0">
                    <Clock size={16} />
@@ -158,7 +158,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                  </div>
                </div>
             ))}
-            {!activities?.length && (
+            {!activities?.items?.length && (
               <div className="h-full flex items-center justify-center text-gray-400 text-sm">No recent activity detected.</div>
             )}
           </div>

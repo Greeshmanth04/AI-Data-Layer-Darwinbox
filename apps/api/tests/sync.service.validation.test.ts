@@ -75,8 +75,8 @@ describe('SyncService Validation', () => {
     });
 
     describe('validateForeignKeyIntegrity', () => {
-        const mockSource = { _id: 'c1', name: 'employees' };
-        const mockTarget = { _id: 'c2', name: 'departments' };
+        const mockSource = { _id: 'c1', name: 'employees', slug: 'employees' };
+        const mockTarget = { _id: 'c2', name: 'departments', slug: 'departments' };
 
         test('should throw if orphaned values exist', async () => {
             (CollectionMetadata.findById as jest.Mock)

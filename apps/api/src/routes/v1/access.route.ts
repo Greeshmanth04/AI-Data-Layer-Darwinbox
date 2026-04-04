@@ -11,7 +11,7 @@ import * as schemas from '../../validators/access.validator';
 
 const router = Router();
 
-router.use(authenticateUser, requireRole(['platform_admin']));
+router.use(authenticateUser, requireRole(['platform_admin', 'data_steward']));
 
 // Groups
 router.get('/groups', getGroups);

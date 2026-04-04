@@ -8,6 +8,7 @@ export interface IMetricDefinition extends Document {
   collectionIds: mongoose.Types.ObjectId[];
   lastComputedValue?: any;
   lastComputedAt?: Date;
+  history: { value: any; timestamp: Date }[];
 }
 
 const MetricDefinitionSchema = new Schema<IMetricDefinition>({
@@ -17,7 +18,14 @@ const MetricDefinitionSchema = new Schema<IMetricDefinition>({
   category: { type: String },
   collectionIds: { type: [Schema.Types.ObjectId], ref: 'CollectionMetadata', default: [] },
   lastComputedValue: { type: Schema.Types.Mixed },
-  lastComputedAt: { type: Date }
+  lastComputedAt: { type: Date },
+  history: {
+    type: [{
+      value: { type: Schema.Types.Mixed, required: true },
+      timestamp: { type: Date, required: true }
+    }],
+    default: []
+  }
 }, { timestamps: true });
 
 export const MetricDefinition = mongoose.model<IMetricDefinition>('MetricDefinition', MetricDefinitionSchema, 'metrics');

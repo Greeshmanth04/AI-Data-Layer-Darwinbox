@@ -4,6 +4,8 @@ import { MetricDefinition } from '../models/metricDefinition.model';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { ActivityService } from '../services/activity.service';
+import { CatalogService } from '../services/catalog.service';
+import { LLMService } from '../services/llm.service';
 
 export const getMetrics = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -54,9 +56,13 @@ export const previewMetricId = async (req: Request, res: Response, next: NextFun
 
     const result = await MetricService.previewFormula(metric.formula, req.user._id);
 
-    // Cache latest computed value
     metric.lastComputedValue = result;
     metric.lastComputedAt = new Date();
+    
+    if (!metric.history) metric.history = [];
+    metric.history.unshift({ value: result, timestamp: metric.lastComputedAt });
+    if (metric.history.length > 5) metric.history.pop();
+
     await metric.save();
 
     await ActivityService.logActivity(req.user._id, 'PREVIEWED_METRIC', metric.name);
@@ -72,3 +78,32 @@ export const validateMetricId = async (req: Request, res: Response, next: NextFu
     sendSuccess(res, 200, { valid: true, extractedTokens: tokens });
   } catch (err) { next(err); }
 };
+
+export const generateFormula = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { prompt } = req.body;
+
+    // Fetch schema context (permission-aware) for the current user
+    const schema = await CatalogService.getDictionary(req.user._id);
+
+    if (!schema || schema.length === 0) {
+      throw new AppError(400, 'NO_SCHEMA', 'No collections available. Please ensure the data catalog has been synced.');
+    }
+
+    // Generate formula via LLM (with heuristic fallback)
+    const { formula, source } = await LLMService.generateMetricFormula(prompt, schema);
+
+    // Validate the generated formula using existing validation logic
+    let valid = true;
+    let validationError: string | null = null;
+    try {
+      await MetricService.validateSyntax(formula);
+    } catch (err: any) {
+      valid = false;
+      validationError = err.message || 'Generated formula failed validation';
+    }
+
+    sendSuccess(res, 200, { formula, source, valid, validationError });
+  } catch (err) { next(err); }
+};
+

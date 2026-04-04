@@ -26,3 +26,9 @@ export const metricFormulaSchema = z.object({
     formula: z.string().min(2)
   })
 });
+
+export const generateFormulaSchema = z.object({
+  body: z.object({
+    prompt: z.string().min(5, 'Prompt must be at least 5 characters long')
+  })
+});
