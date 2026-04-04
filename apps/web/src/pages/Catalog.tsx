@@ -51,9 +51,9 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
   const [tagInput, setTagInput] = useState('');
   const [showCollModal, setShowCollModal] = useState(false);
   const [isEditingColl, setIsEditingColl] = useState(false);
-  const [collForm, setCollForm] = useState({ name: '', displayName: '', module: '', description: '' });
+  const [collForm, setCollForm] = useState({ slug: '', name: '', module: '', description: '' });
   const [showFieldModal, setShowFieldModal] = useState(false);
-  const [fieldForm, setFieldForm] = useState({ name: '', type: 'string', isCustom: true, isPrimaryKey: false, isForeignKey: false, targetCollectionId: '', targetFieldId: '', relationshipType: 'one-to-many', relationshipLabel: '' });
+  const [fieldForm, setFieldForm] = useState({ fieldName: '', dataType: 'string', isCustom: true, isPrimaryKey: false, isForeignKey: false, targetCollectionId: '', targetFieldId: '', relationshipType: 'one-to-many', relationshipLabel: '', exampleValues: [] as string[] });
   const [bulkResult, setBulkResult] = useState<{ total: number; updated: number; failed: number } | null>(null);
   const [knownTags, setKnownTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +124,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
   });
 
   const updateFieldGeneralMutation = useMutation({
-    mutationFn: (data: { id: string; tags?: string[]; isCustom?: boolean; type?: string; name?: string; isPrimaryKey?: boolean; isForeignKey?: boolean; targetCollectionId?: string; targetFieldId?: string; relationshipType?: string; relationshipLabel?: string }) =>
+    mutationFn: (data: { id: string; tags?: string[]; isCustom?: boolean; dataType?: string; fieldName?: string; isPrimaryKey?: boolean; isForeignKey?: boolean; targetCollectionId?: string; targetFieldId?: string; relationshipType?: string; relationshipLabel?: string; exampleValues?: string[] }) =>
       apiClient(`/catalog/fields/${data.id}`, { method: 'PUT', body: JSON.stringify(data) }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
@@ -285,13 +285,13 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                 ) : f.isForeignKey ? (
                   <span className="bg-indigo-100 text-indigo-500 rounded p-0.5"><Key size={14} /></span>
                 ) : null}
-                {f.name}
+                {f.fieldName}
                 {f.isPrimaryKey && <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded tracking-wide">PK</span>}
                 {f.isForeignKey && <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-1 py-0.5 rounded tracking-wide">FK</span>}
               </td>
               <td className="px-6 py-4">
                 <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-mono font-semibold text-slate-700">
-                  {f.type}
+                  {f.dataType}
                 </span>
               </td>
               <td className="px-6 py-4 text-slate-500 text-xs max-w-xs">
@@ -354,7 +354,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
             <button
               onClick={() => {
                 setIsEditingColl(false);
-                setCollForm({ name: '', displayName: '', module: '', description: '' });
+                setCollForm({ slug: '', name: '', module: '', description: '' });
                 setShowCollModal(true);
               }}
               className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg border border-slate-200 transition-colors"
@@ -382,8 +382,8 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
               <div className={`space-y-0.5 px-2 overflow-hidden transition-all duration-300 ${collapsedModules.includes(mod) ? 'max-h-0 opacity-0' : 'max-h-[1000px] opacity-100'}`}>
                 {groupedCollections[mod]
                   .filter((coll: any) =>
-                    coll.displayName.toLowerCase().includes(collSearch.toLowerCase()) ||
-                    coll.name.toLowerCase().includes(collSearch.toLowerCase())
+                    coll.name.toLowerCase().includes(collSearch.toLowerCase()) ||
+                    coll.slug.toLowerCase().includes(collSearch.toLowerCase())
                   )
                   .map((coll: any) => {
                     const isSelected = selectedCollId === coll._id && !selectedField;
@@ -397,7 +397,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                             className="flex-1 text-left px-3 py-2 text-sm flex justify-between items-center font-medium"
                           >
                             <span className={`capitalize ${isSelected ? 'text-white' : 'text-slate-600'}`}>
-                              {coll.displayName}
+                              {coll.name}
                             </span>
                             {isSelected ? (
                               <span className="text-[10px] bg-indigo-500/50 text-white px-2 py-0.5 rounded-full font-bold">
@@ -414,7 +414,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setDeleteConfirm({ id: coll._id, type: 'collection', name: coll.displayName });
+                                setDeleteConfirm({ id: coll._id, type: 'collection', name: coll.name });
                               }}
                               className="px-2 text-red-400 opacity-0 group-hover/item:opacity-100 hover:text-red-600 transition-opacity"
                             >
@@ -436,7 +436,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                                   : f.isForeignKey
                                     ? <Key size={12} className={selectedField?._id === f._id ? 'text-indigo-500' : 'text-indigo-400'} />
                                     : <Hash size={12} className={selectedField?._id === f._id ? 'text-indigo-400' : 'text-slate-300'} />}
-                                {f.name}
+                                {f.fieldName}
                               </button>
                             ))}
                           </div>
@@ -477,7 +477,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
               <div className="flex justify-between items-start">
                 <div>
                   <h1 className="text-3xl font-bold text-slate-900 capitalize tracking-tight">
-                    {collectionDetail.displayName}
+                    {collectionDetail.name}
                   </h1>
                   <p className="text-slate-500 mt-1 text-sm max-w-lg">
                     {collectionDetail.description || 'Core entity profile mapping evaluating globally.'}
@@ -489,8 +489,8 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                       onClick={() => {
                         setIsEditingColl(true);
                         setCollForm({
+                          slug: collectionDetail.slug,
                           name: collectionDetail.name,
-                          displayName: collectionDetail.displayName,
                           module: collectionDetail.module,
                           description: collectionDetail.description || '',
                         });
@@ -502,7 +502,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                       <Edit3 size={16} />
                     </button>
                     <button
-                      onClick={() => setDeleteConfirm({ id: collectionDetail._id, type: 'collection', name: collectionDetail.displayName })}
+                      onClick={() => setDeleteConfirm({ id: collectionDetail._id, type: 'collection', name: collectionDetail.name })}
                       className="bg-white hover:bg-red-50 text-red-500 p-2 rounded-lg border border-slate-200 transition-colors"
                       title="Delete Collection"
                     >
@@ -633,7 +633,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                 onClick={() => setSelectedField(null)}
                 className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
               >
-                <ArrowLeft size={16} /> Back to `{collectionDetail?.displayName}`
+                <ArrowLeft size={16} /> Back to `{collectionDetail?.name}`
               </button>
             </div>
 
@@ -651,23 +651,23 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                     )}
                     {isAdmin ? (
                       <input
-                        value={selectedField.name}
-                        onChange={(e) => setSelectedField({ ...selectedField, name: e.target.value })}
+                        value={selectedField.fieldName}
+                        onChange={(e) => setSelectedField({ ...selectedField, fieldName: e.target.value })}
                         onBlur={(e) => {
                           if (e.target.value.trim() !== '') {
-                            updateFieldGeneralMutation.mutate({ id: selectedField._id, name: e.target.value.trim() });
+                            updateFieldGeneralMutation.mutate({ id: selectedField._id, fieldName: e.target.value.trim() });
                           }
                         }}
                         className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-0 p-0 m-0 w-auto min-w-[200px]"
                       />
                     ) : (
-                      <span>{selectedField.name}</span>
+                      <span>{selectedField.fieldName}</span>
                     )}
                   </h1>
                   {isAdmin ? (
                     <select
-                      value={selectedField.type}
-                      onChange={(e) => updateFieldGeneralMutation.mutate({ id: selectedField._id, type: e.target.value })}
+                      value={selectedField.dataType}
+                      onChange={(e) => updateFieldGeneralMutation.mutate({ id: selectedField._id, dataType: e.target.value })}
                       className="bg-slate-100 border border-slate-200 px-2 flex py-1 rounded text-xs font-mono font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 hover:bg-slate-200 transition-colors"
                     >
                       <option value="string">string</option>
@@ -677,7 +677,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                       <option value="reference">reference</option>
                     </select>
                   ) : (
-                    <span className="bg-slate-100 border border-slate-200 px-2 py-1 rounded text-xs font-mono font-bold text-slate-700">{selectedField.type}</span>
+                    <span className="bg-slate-100 border border-slate-200 px-2 py-1 rounded text-xs font-mono font-bold text-slate-700">{selectedField.dataType}</span>
                   )}
 
                   {selectedField.isCustom ? (
@@ -702,13 +702,13 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                 <p className="text-slate-500 mt-3 text-sm flex items-center gap-2">
                   <Database size={14} className="text-slate-400" />
                   Mapped rigidly to{' '}
-                  <span className="font-semibold text-slate-700 capitalize">{collectionDetail?.displayName}</span>
+                  <span className="font-semibold text-slate-700 capitalize">{collectionDetail?.name}</span>
                 </p>
               </div>
 
               {isAdmin && (
                 <button
-                  onClick={() => setDeleteConfirm({ id: selectedField._id, type: 'field', name: selectedField.name })}
+                  onClick={() => setDeleteConfirm({ id: selectedField._id, type: 'field', name: selectedField.fieldName })}
                   className="p-2 text-red-400 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
                 >
                   <Trash2 size={18} />
@@ -766,7 +766,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                         <select value={selectedField.targetCollectionId || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, targetCollectionId: e.target.value })} className="w-full border border-slate-200 rounded p-2 text-sm">
                           <option value="">-- Select Collection --</option>
                           {Object.values(groupedCollections).flat().map((c: any) => (
-                            <option key={c._id} value={c._id}>{c.displayName}</option>
+                            <option key={c._id} value={c._id}>{c.name}</option>
                           ))}
                         </select>
                       </div>
@@ -774,8 +774,8 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Field</p>
                         <select value={selectedField.targetFieldId || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, targetFieldId: e.target.value })} className="w-full border border-slate-200 rounded p-2 text-sm" disabled={!selectedField.targetCollectionId}>
                           <option value="">-- Select Field --</option>
-                          {targetCollectionDetail?.fields?.filter((f: any) => f.isPrimaryKey).map((f: any) => (
-                            <option key={f._id} value={f._id}>🔑 {f.name} (PK)</option>
+                           {targetCollectionDetail?.fields?.filter((f: any) => f.isPrimaryKey).map((f: any) => (
+                            <option key={f._id} value={f._id}>🔑 {f.fieldName} (PK)</option>
                           ))}
                           {targetCollectionDetail?.fields && targetCollectionDetail.fields.every((f: any) => !f.isPrimaryKey) && (
                             <option disabled value="">No PK fields available</option>
@@ -864,8 +864,15 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                       <Database size={12} /> Example Values (Sampled)
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {collectionDetail?.samples?.map((doc: any, i: number) => {
-                        const val = doc[selectedField.name];
+                      {selectedField.exampleValues?.length ? selectedField.exampleValues.map((val: string, i: number) => (
+                        <span
+                          key={i}
+                          className="bg-slate-100 text-slate-500 border border-slate-200 text-[11px] font-mono font-semibold px-2 py-0.5 rounded"
+                        >
+                          {val}
+                        </span>
+                      )) : collectionDetail?.samples?.map((doc: any, i: number) => {
+                        const val = doc[selectedField.fieldName];
                         if (val === undefined || val === null) return null;
                         const displayVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
                         const truncated = displayVal.length > 50 ? displayVal.substring(0, 50) + '...' : displayVal;
@@ -879,8 +886,8 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                           </span>
                         );
                       })}
-                      {(!collectionDetail?.samples || collectionDetail.samples.length === 0 ||
-                        collectionDetail.samples.every((doc: any) => doc[selectedField.name] === undefined || doc[selectedField.name] === null)) && (
+                      {(!selectedField.exampleValues?.length && (!collectionDetail?.samples || collectionDetail.samples.length === 0 ||
+                        collectionDetail.samples.every((doc: any) => doc[selectedField.fieldName] === undefined || doc[selectedField.fieldName] === null))) && (
                           <span className="text-[11px] italic text-slate-400">No samples available</span>
                         )}
                     </div>
@@ -1045,24 +1052,29 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
             </h2>
             <div className="space-y-3">
               <input
-                placeholder="Collection Name (e.g. employees)"
+                placeholder="Slug API Identifier (e.g. employees)"
                 disabled={isEditingColl}
-                value={collForm.name}
-                onChange={e => setCollForm({ ...collForm, name: e.target.value })}
-                className="w-full border border-slate-200 p-2 rounded text-sm disabled:bg-slate-50 disabled:text-slate-400"
+                value={collForm.slug}
+                onChange={e => setCollForm({ ...collForm, slug: e.target.value })}
+                className="w-full border border-slate-200 p-2 rounded text-sm disabled:bg-slate-50 disabled:text-slate-400 font-mono"
               />
               <input
                 placeholder="Display Name (e.g. Employees)"
-                value={collForm.displayName}
-                onChange={e => setCollForm({ ...collForm, displayName: e.target.value })}
+                value={collForm.name}
+                onChange={e => setCollForm({ ...collForm, name: e.target.value })}
                 className="w-full border border-slate-200 p-2 rounded text-sm"
               />
-              <input
-                placeholder="Module (e.g. Core)"
+              <select
                 value={collForm.module}
                 onChange={e => setCollForm({ ...collForm, module: e.target.value })}
                 className="w-full border border-slate-200 p-2 rounded text-sm"
-              />
+              >
+                <option value="" disabled>Select Module</option>
+                <option value="Core">Core</option>
+                <option value="Recruitment">Recruitment</option>
+                <option value="Time">Time</option>
+                <option value="Payroll">Payroll</option>
+              </select>
               <textarea
                 placeholder="Description"
                 value={collForm.description}
@@ -1095,7 +1107,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
           <div className="bg-white p-6 rounded-2xl w-96 shadow-xl animate-in fade-in zoom-in-95 duration-200">
             <h2 className="text-lg font-bold mb-1 text-slate-800">Map Custom Parameter</h2>
             <p className="text-xs text-slate-500 mb-1">
-              Target: <span className="font-bold">{collectionDetail.displayName}</span>
+              Target: <span className="font-bold">{collectionDetail.name}</span>
             </p>
             <div className="flex items-center gap-1.5 mb-4">
               <Sparkles size={11} className="text-indigo-400" />
@@ -1106,13 +1118,13 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
             <div className="space-y-3">
               <input
                 placeholder="Field Code (e.g. internal_id)"
-                value={fieldForm.name}
-                onChange={e => setFieldForm({ ...fieldForm, name: e.target.value })}
+                value={fieldForm.fieldName}
+                onChange={e => setFieldForm({ ...fieldForm, fieldName: e.target.value })}
                 className="w-full border border-slate-200 p-2 rounded font-mono text-sm"
               />
-              <select
-                value={fieldForm.type}
-                onChange={e => setFieldForm({ ...fieldForm, type: e.target.value })}
+               <select
+                value={fieldForm.dataType}
+                onChange={e => setFieldForm({ ...fieldForm, dataType: e.target.value })}
                 className="w-full border border-slate-200 p-2 rounded text-sm"
               >
                 <option value="string">String</option>
@@ -1138,13 +1150,13 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                   <select value={fieldForm.targetCollectionId || ''} onChange={e => setFieldForm({ ...fieldForm, targetCollectionId: e.target.value })} className="w-full text-sm p-2 border rounded">
                     <option value="">-- Target Collection --</option>
                     {Object.values(groupedCollections).flat().map((c: any) => (
-                      <option key={c._id} value={c._id}>{c.displayName}</option>
+                      <option key={c._id} value={c._id}>{c.name}</option>
                     ))}
                   </select>
-                  <select value={fieldForm.targetFieldId || ''} onChange={e => setFieldForm({ ...fieldForm, targetFieldId: e.target.value })} className="w-full text-sm p-2 border rounded" disabled={!fieldForm.targetCollectionId}>
+                   <select value={fieldForm.targetFieldId || ''} onChange={e => setFieldForm({ ...fieldForm, targetFieldId: e.target.value })} className="w-full text-sm p-2 border rounded" disabled={!fieldForm.targetCollectionId}>
                     <option value="">-- Target Field --</option>
                     {formTargetCollectionDetail?.fields?.filter((f: any) => f.isPrimaryKey).map((f: any) => (
-                      <option key={f._id} value={f._id}>🔑 {f.name} (PK)</option>
+                      <option key={f._id} value={f._id}>🔑 {f.fieldName} (PK)</option>
                     ))}
                   </select>
                   {fieldForm.targetCollectionId && formTargetCollectionDetail?.fields && formTargetCollectionDetail.fields.every((f: any) => !f.isPrimaryKey) && (

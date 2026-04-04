@@ -10,28 +10,48 @@ export class RelationshipService {
   static async getPermittedGraph(userId: string) {
     const groupedCollections = await CatalogService.getPermittedCollections(userId);
     const accessibleCollections = Object.values(groupedCollections).flat();
-    const accessibleNames = accessibleCollections.map(c => c.name);
+    const accessibleIds = accessibleCollections.map(c => c._id);
+    const slugMap = new Map();
+    accessibleCollections.forEach(c => slugMap.set(c._id.toString(), c.slug));
 
     const rawEdges = await Relationship.find({
-      sourceCollection: { $in: accessibleNames },
-      targetCollection: { $in: accessibleNames }
+      sourceCollectionId: { $in: accessibleIds },
+      targetCollectionId: { $in: accessibleIds }
     }).lean();
 
-    const secureEdges: typeof rawEdges = [];
+    const fields = await FieldMetadata.find({ collectionId: { $in: accessibleIds } }).lean();
+    const fieldMap = new Map();
+    fields.forEach(f => fieldMap.set(f._id.toString(), f.fieldName));
+
+    const secureEdges: any[] = [];
 
     for (const edge of rawEdges) {
-      const srcPerms = await PermissionService.resolveCollectionPermissions(userId, edge.sourceCollection, false);
-      const tgtPerms = await PermissionService.resolveCollectionPermissions(userId, edge.targetCollection, false);
+      const sourceSlug = slugMap.get(edge.sourceCollectionId.toString());
+      const targetSlug = slugMap.get(edge.targetCollectionId.toString());
+      
+      if (!sourceSlug || !targetSlug) continue;
 
-      if (srcPerms && tgtPerms) {
-        const srcDenied = srcPerms.effectiveFields.denied.includes(edge.sourceField);
-        const srcMissing = srcPerms.effectiveFields.allowed.length > 0 && !srcPerms.effectiveFields.allowed.includes(edge.sourceField);
+      const srcPerms = await PermissionService.resolveCollectionPermissions(userId, sourceSlug, false);
+      const tgtPerms = await PermissionService.resolveCollectionPermissions(userId, targetSlug, false);
+
+      const sourceFieldName = fieldMap.get(edge.sourceFieldId.toString());
+      const targetFieldName = fieldMap.get(edge.targetFieldId.toString());
+
+      if (srcPerms && tgtPerms && sourceFieldName && targetFieldName) {
+        const srcDenied = srcPerms.effectiveFields.denied.includes(sourceFieldName);
+        const srcMissing = srcPerms.effectiveFields.allowed.length > 0 && !srcPerms.effectiveFields.allowed.includes(sourceFieldName);
         
-        const tgtDenied = tgtPerms.effectiveFields.denied.includes(edge.targetField);
-        const tgtMissing = tgtPerms.effectiveFields.allowed.length > 0 && !tgtPerms.effectiveFields.allowed.includes(edge.targetField);
+        const tgtDenied = tgtPerms.effectiveFields.denied.includes(targetFieldName);
+        const tgtMissing = tgtPerms.effectiveFields.allowed.length > 0 && !tgtPerms.effectiveFields.allowed.includes(targetFieldName);
 
         if (!srcDenied && !srcMissing && !tgtDenied && !tgtMissing) {
-          secureEdges.push(edge);
+          secureEdges.push({
+            ...edge,
+            sourceCollection: sourceSlug,
+            targetCollection: targetSlug,
+            sourceField: sourceFieldName,
+            targetField: targetFieldName
+          });
         }
       }
     }
@@ -52,37 +72,37 @@ export class RelationshipService {
       if (!sourceColl) continue;
 
       // Auto-identify fields that look like IDs and aren't already foreign keys
-      if (!field.isPrimaryKey && field.name.toLowerCase().endsWith('id') && !field.isForeignKey) {
-        // e.g. employee_id -> employee
-        const baseName = field.name.replace(/_id$/i, '').replace(/Id$/i, '');
+      if (!field.isPrimaryKey && field.fieldName.toLowerCase().endsWith('id') && !field.isForeignKey) {
+        // e.g. employee_id → employee
+        const baseName = field.fieldName.replace(/_id$/i, '').replace(/Id$/i, '');
         const potentialTargetSingular = baseName.toLowerCase();
         
         const targetColl = collections.find(c => 
-          c.name.toLowerCase() === potentialTargetSingular + 's' || 
-          c.name.toLowerCase() === potentialTargetSingular
+          c.slug.toLowerCase() === potentialTargetSingular + 's' || 
+          c.slug.toLowerCase() === potentialTargetSingular
         );
 
-        if (targetColl && targetColl.name !== sourceColl.name) {
-          // Attempt to find the target's primary key name, or default to generic '_id' (wait, usually PRD uses specific IDs)
+        if (targetColl && targetColl.slug !== sourceColl.slug) {
           const pkField = fields.find(f => f.collectionId.toString() === targetColl._id.toString() && f.isPrimaryKey);
-          const targetFieldName = pkField ? pkField.name : '_id';
-
-          const exists = await Relationship.exists({
-            sourceCollection: sourceColl.name,
-            sourceField: field.name
-          });
-
-          if (!exists) {
-            const edge = await Relationship.create({
-              sourceCollection: sourceColl.name,
-              targetCollection: targetColl.name,
-              sourceField: field.name,
-              targetField: targetFieldName,
-              relationshipType: '1:N',
-              isAutoDetected: true,
-              label: `${sourceColl.name}.${field.name} → ${targetColl.name}.${targetFieldName}`
+          
+          if (pkField) {
+            const exists = await Relationship.exists({
+              sourceCollectionId: sourceColl._id,
+              sourceFieldId: field._id
             });
-            detectedEdges.push(edge);
+
+            if (!exists) {
+              const edge = await Relationship.create({
+                sourceCollectionId: sourceColl._id,
+                targetCollectionId: targetColl._id,
+                sourceFieldId: field._id,
+                targetFieldId: pkField._id,
+                relationshipType: 'one-to-many',
+                isAutoDetected: true,
+                label: `${sourceColl.slug}.${field.fieldName} → ${targetColl.slug}.${pkField.fieldName}`
+              });
+              detectedEdges.push(edge);
+            }
           }
         }
       }

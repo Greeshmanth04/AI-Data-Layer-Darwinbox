@@ -2,6 +2,7 @@ import { FieldMetadata, IFieldMetadata } from '../models/fieldMetadata.model';
 import { Relationship } from '../models/relationship.model';
 import { CollectionMetadata } from '../models/collectionMetadata.model';
 import { AppError } from '../utils/errors';
+import mongoose from 'mongoose';
 
 /**
  * SyncService — bidirectional sync between Data Catalog (FieldMetadata) and
@@ -14,29 +15,6 @@ import { AppError } from '../utils/errors';
  *   When a relationship is created/updated/deleted, update the source field's FK metadata.
  */
 export class SyncService {
-
-  // ─────────────────────────────────────────────────────────────
-  // Helpers
-  // ─────────────────────────────────────────────────────────────
-
-  /** Map relationship type between the two schemas */
-  static catalogTypeToRelType(t?: string): '1:1' | '1:N' | 'M:N' {
-    switch (t) {
-      case 'one-to-one': return '1:1';
-      case 'one-to-many': return '1:N';
-      case 'many-to-one': return 'M:N';
-      default: return '1:N';
-    }
-  }
-
-  static relTypeToCatalogType(t?: string): 'one-to-one' | 'one-to-many' | 'many-to-one' {
-    switch (t) {
-      case '1:1': return 'one-to-one';
-      case '1:N': return 'one-to-many';
-      case 'M:N': return 'many-to-one';
-      default: return 'one-to-many';
-    }
-  }
 
   // ─────────────────────────────────────────────────────────────
   // Direction A: Catalog → Relationship Mapper
@@ -64,17 +42,17 @@ export class SyncService {
     }
 
     const filter = {
-      sourceCollection: sourceColl.name,
-      sourceField: field.name,
+      sourceCollectionId: sourceColl._id,
+      sourceFieldId: field._id,
     };
 
     const relData = {
-      sourceCollection: sourceColl.name,
-      targetCollection: targetColl.name,
-      sourceField: field.name,
-      targetField: targetField.name,
-      label: field.relationshipLabel || `${sourceColl.name}.${field.name} → ${targetColl.name}.${targetField.name}`,
-      relationshipType: this.catalogTypeToRelType(field.relationshipType),
+      sourceCollectionId: sourceColl._id,
+      targetCollectionId: targetColl._id,
+      sourceFieldId: field._id,
+      targetFieldId: targetField._id,
+      label: field.relationshipLabel || `${sourceColl.name}.${field.fieldName} → ${targetColl.name}.${targetField.fieldName}`,
+      relationshipType: field.relationshipType || 'one-to-many',
       isAutoDetected: false,
     };
 
@@ -90,8 +68,8 @@ export class SyncService {
     if (!sourceColl) return;
 
     await Relationship.deleteMany({
-      sourceCollection: sourceColl.name,
-      sourceField: field.name,
+      sourceCollectionId: sourceColl._id,
+      sourceFieldId: field._id,
     });
   }
 
@@ -104,38 +82,29 @@ export class SyncService {
    * update the source field to reflect FK status and target metadata.
    */
   static async syncRelationshipToField(rel: {
-    sourceCollection: string;
-    targetCollection: string;
-    sourceField: string;
-    targetField: string;
+    sourceCollectionId: string;
+    targetCollectionId: string;
+    sourceFieldId: string;
+    targetFieldId: string;
     label?: string;
     relationshipType?: string;
   }): Promise<void> {
-    // Find source collection + field
-    const sourceColl = await CollectionMetadata.findOne({ name: rel.sourceCollection }).lean();
-    if (!sourceColl) return;
-
-    const sourceField = await FieldMetadata.findOne({
-      collectionId: sourceColl._id,
-      name: rel.sourceField,
-    });
+    // Find source field
+    const sourceField = await FieldMetadata.findById(rel.sourceFieldId);
     if (!sourceField) return;
 
     // Find target collection + field
-    const targetColl = await CollectionMetadata.findOne({ name: rel.targetCollection }).lean();
+    const targetColl = await CollectionMetadata.findById(rel.targetCollectionId).lean();
     if (!targetColl) return;
 
-    let targetField = await FieldMetadata.findOne({
-      collectionId: targetColl._id,
-      name: rel.targetField,
-    }).lean();
+    const targetField = await FieldMetadata.findById(rel.targetFieldId).lean();
 
     // Update the source field with FK info
     sourceField.isForeignKey = true;
     sourceField.targetCollectionId = targetColl._id as any;
     sourceField.targetFieldId = targetField ? targetField._id as any : undefined;
-    sourceField.relationshipLabel = rel.label || `${rel.sourceCollection}.${rel.sourceField} → ${rel.targetCollection}.${rel.targetField}`;
-    sourceField.relationshipType = this.relTypeToCatalogType(rel.relationshipType);
+    sourceField.relationshipLabel = rel.label;
+    sourceField.relationshipType = rel.relationshipType as any;
 
     await sourceField.save();
   }
@@ -146,23 +115,19 @@ export class SyncService {
    * If not, clear its FK metadata.
    */
   static async syncRelationshipDeletion(rel: {
-    sourceCollection: string;
-    sourceField: string;
+    sourceCollectionId: string;
+    sourceFieldId: string;
   }): Promise<void> {
     // Check if any other relationships still reference this source field
     const remaining = await Relationship.countDocuments({
-      sourceCollection: rel.sourceCollection,
-      sourceField: rel.sourceField,
+      sourceCollectionId: rel.sourceCollectionId,
+      sourceFieldId: rel.sourceFieldId,
     });
 
     if (remaining > 0) return; // Still referenced — keep FK flag
 
-    // Clear FK metadata on the source field
-    const sourceColl = await CollectionMetadata.findOne({ name: rel.sourceCollection }).lean();
-    if (!sourceColl) return;
-
     await FieldMetadata.updateOne(
-      { collectionId: sourceColl._id, name: rel.sourceField },
+      { _id: rel.sourceFieldId },
       {
         $set: { isForeignKey: false },
         $unset: {
@@ -183,19 +148,14 @@ export class SyncService {
    * When a field is deleted, remove all relationships involving it as source.
    */
   static async onFieldDeleted(field: IFieldMetadata): Promise<void> {
-    const sourceColl = await CollectionMetadata.findById(field.collectionId).lean();
-    if (!sourceColl) return;
-
     // Delete relationships where this field is the source
     await Relationship.deleteMany({
-      sourceCollection: sourceColl.name,
-      sourceField: field.name,
+      sourceFieldId: field._id,
     });
 
     // Also clean any relationships pointing TO this field
     await Relationship.deleteMany({
-      targetCollection: sourceColl.name,
-      targetField: field.name,
+      targetFieldId: field._id,
     });
 
     // Clean FK flags on any other fields that targeted this field
@@ -214,33 +174,31 @@ export class SyncService {
    * When a collection is deleted, cascade-delete all related relationships
    * and clean FK flags on fields in other collections that pointed to it.
    */
-  static async onCollectionDeleted(collectionName: string): Promise<void> {
+  static async onCollectionDeleted(collectionSlug: string): Promise<void> {
+    const coll = await CollectionMetadata.findOne({ slug: collectionSlug }).lean();
+    if (!coll) return;
+
     // Delete all relationships involving this collection
     await Relationship.deleteMany({
       $or: [
-        { sourceCollection: collectionName },
-        { targetCollection: collectionName },
+        { sourceCollectionId: coll._id },
+        { targetCollectionId: coll._id },
       ],
     });
 
-    // Find the collection ID to clean FK target references
-    // (The collection may already be deleted, so guard)
-    const coll = await CollectionMetadata.findOne({ name: collectionName }).lean();
-    if (coll) {
-      // Clear FK metadata on any field targeting this collection
-      await FieldMetadata.updateMany(
-        { targetCollectionId: coll._id },
-        {
-          $set: { isForeignKey: false },
-          $unset: {
-            targetCollectionId: '',
-            targetFieldId: '',
-            relationshipLabel: '',
-            relationshipType: '',
-          },
-        }
-      );
-    }
+    // Clear FK metadata on any field targeting this collection
+    await FieldMetadata.updateMany(
+      { targetCollectionId: coll._id },
+      {
+        $set: { isForeignKey: false },
+        $unset: {
+          targetCollectionId: '',
+          targetFieldId: '',
+          relationshipLabel: '',
+          relationshipType: '',
+        },
+      }
+    );
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -263,7 +221,7 @@ export class SyncService {
 
     try {
       // Use aggregation to find duplicate non-null values
-      const duplicates = await db.collection(coll.name).aggregate([
+      const duplicates = await db.collection(coll.slug).aggregate([
         { $match: { [fieldName]: { $ne: null, $exists: true } } },
         { $group: { _id: `$${fieldName}`, count: { $sum: 1 } } },
         { $match: { count: { $gt: 1 } } },
@@ -309,7 +267,7 @@ export class SyncService {
       throw new AppError(
         400,
         'FK_VALIDATION_FAILED',
-        `FK target field '${targetField.name}' is not a Primary Key in '${targetColl.name}'. A Foreign Key must reference a Primary Key field.`
+        `FK target field '${targetField.fieldName}' is not a Primary Key in '${targetColl.name}'. A Foreign Key must reference a Primary Key field.`
       );
     }
   }
@@ -333,13 +291,13 @@ export class SyncService {
 
     try {
       // Get distinct non-null values from source field
-      const sourceValues: any[] = await db.collection(sourceColl.name)
+      const sourceValues: any[] = await db.collection(sourceColl.slug)
         .distinct(fieldName, { [fieldName]: { $ne: null, $exists: true } });
 
       if (sourceValues.length === 0) return; // No data to check
 
       // Get distinct values from target PK field
-      const targetValues: any[] = await db.collection(targetColl.name)
+      const targetValues: any[] = await db.collection(targetColl.slug)
         .distinct(targetFieldName, { [targetFieldName]: { $ne: null, $exists: true } });
 
       const targetSet = new Set(targetValues.map(String));
@@ -390,5 +348,3 @@ export class SyncService {
     }
   }
 }
-
-import mongoose from 'mongoose';

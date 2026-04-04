@@ -17,17 +17,17 @@ export const getGraph = async (req: Request, res: Response, next: NextFunction) 
 
 export const createRelationship = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { sourceCollection, targetCollection, sourceField, targetField } = req.body;
+    const { sourceCollectionId, targetCollectionId, sourceFieldId, targetFieldId } = req.body;
 
-    // ── Validation: Resolve Names to IDs and Check Integrity ──
-    const sColl = await CollectionMetadata.findOne({ name: sourceCollection }).lean();
-    const tColl = await CollectionMetadata.findOne({ name: targetCollection }).lean();
+    // ── Validation: Check Integrity ──
+    const sColl = await CollectionMetadata.findById(sourceCollectionId).lean();
+    const tColl = await CollectionMetadata.findById(targetCollectionId).lean();
     if (!sColl || !tColl) {
       throw new AppError(400, 'VALIDATION_FAILED', 'Source or Target collection not found');
     }
 
-    const sField = await FieldMetadata.findOne({ collectionId: sColl._id, name: sourceField }).lean();
-    const tField = await FieldMetadata.findOne({ collectionId: tColl._id, name: targetField }).lean();
+    const sField = await FieldMetadata.findById(sourceFieldId).lean();
+    const tField = await FieldMetadata.findById(targetFieldId).lean();
     if (!sField || !tField) {
       throw new AppError(400, 'VALIDATION_FAILED', 'Source or Target field not found');
     }
@@ -36,17 +36,17 @@ export const createRelationship = async (req: Request, res: Response, next: Next
     await SyncService.validateForeignKeyTarget(String(tColl._id), String(tField._id));
 
     // 2. Referential integrity check
-    await SyncService.validateForeignKeyIntegrity(sColl._id, sField.name, tColl._id, tField.name);
+    await SyncService.validateForeignKeyIntegrity(sColl._id, sField.fieldName, tColl._id, tField.fieldName);
 
     const edge = await Relationship.create({ ...req.body, isAutoDetected: false });
 
     // Sync → Data Catalog: mark source field as FK
     try {
       await SyncService.syncRelationshipToField({
-        sourceCollection: edge.sourceCollection,
-        targetCollection: edge.targetCollection,
-        sourceField: edge.sourceField,
-        targetField: edge.targetField,
+        sourceCollectionId: String(edge.sourceCollectionId),
+        targetCollectionId: String(edge.targetCollectionId),
+        sourceFieldId: String(edge.sourceFieldId),
+        targetFieldId: String(edge.targetFieldId),
         label: edge.label,
         relationshipType: edge.relationshipType,
       });
@@ -54,29 +54,28 @@ export const createRelationship = async (req: Request, res: Response, next: Next
       console.error('[RelationshipController] Sync to catalog failed on create:', syncErr);
     }
 
-    await ActivityService.logActivity(req.user._id, 'CREATED_EDGE', `${edge.sourceCollection} to ${edge.targetCollection}`);
+    await ActivityService.logActivity(req.user._id, 'CREATED_EDGE', `${edge.sourceCollectionId} to ${edge.targetCollectionId}`);
     sendSuccess(res, 201, edge);
   } catch (err) { next(err); }
 };
 
 export const updateRelationship = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { sourceCollection, targetCollection, sourceField, targetField } = req.body;
+    const { sourceCollectionId, targetCollectionId, sourceFieldId, targetFieldId } = req.body;
 
-    // ── Validation: Resolve Names to IDs and Check Integrity if changed ──
-    const sColl = await CollectionMetadata.findOne({ name: sourceCollection }).lean();
-    const tColl = await CollectionMetadata.findOne({ name: targetCollection }).lean();
+    const sColl = sourceCollectionId ? await CollectionMetadata.findById(sourceCollectionId).lean() : null;
+    const tColl = targetCollectionId ? await CollectionMetadata.findById(targetCollectionId).lean() : null;
 
-    if (sColl && tColl && sourceField && targetField) {
-      const sField = await FieldMetadata.findOne({ collectionId: sColl._id, name: sourceField }).lean();
-      const tField = await FieldMetadata.findOne({ collectionId: tColl._id, name: targetField }).lean();
+    if (sColl && tColl && sourceFieldId && targetFieldId) {
+      const sField = await FieldMetadata.findById(sourceFieldId).lean();
+      const tField = await FieldMetadata.findById(targetFieldId).lean();
 
       if (sField && tField) {
         // 1. Target must be PK
         await SyncService.validateForeignKeyTarget(String(tColl._id), String(tField._id));
 
         // 2. Referential integrity check
-        await SyncService.validateForeignKeyIntegrity(sColl._id, sField.name, tColl._id, tField.name);
+        await SyncService.validateForeignKeyIntegrity(sColl._id, sField.fieldName, tColl._id, tField.fieldName);
       }
     }
 
@@ -86,10 +85,10 @@ export const updateRelationship = async (req: Request, res: Response, next: Next
     // Sync → Data Catalog: update FK metadata on source field
     try {
       await SyncService.syncRelationshipToField({
-        sourceCollection: edge.sourceCollection,
-        targetCollection: edge.targetCollection,
-        sourceField: edge.sourceField,
-        targetField: edge.targetField,
+        sourceCollectionId: String(edge.sourceCollectionId),
+        targetCollectionId: String(edge.targetCollectionId),
+        sourceFieldId: String(edge.sourceFieldId),
+        targetFieldId: String(edge.targetFieldId),
         label: edge.label,
         relationshipType: edge.relationshipType,
       });
@@ -113,8 +112,8 @@ export const deleteRelationship = async (req: Request, res: Response, next: Next
     // Sync → Data Catalog: clear FK flag if no remaining relationships
     try {
       await SyncService.syncRelationshipDeletion({
-        sourceCollection: edge.sourceCollection,
-        sourceField: edge.sourceField,
+        sourceCollectionId: String(edge.sourceCollectionId),
+        sourceFieldId: String(edge.sourceFieldId),
       });
     } catch (syncErr) {
       console.error('[RelationshipController] Sync to catalog failed on delete:', syncErr);
@@ -133,10 +132,10 @@ export const autoDetect = async (req: Request, res: Response, next: NextFunction
     for (const edge of detectedEdges) {
       try {
         await SyncService.syncRelationshipToField({
-          sourceCollection: edge.sourceCollection,
-          targetCollection: edge.targetCollection,
-          sourceField: edge.sourceField,
-          targetField: edge.targetField,
+          sourceCollectionId: String(edge.sourceCollectionId),
+          targetCollectionId: String(edge.targetCollectionId),
+          sourceFieldId: String(edge.sourceFieldId),
+          targetFieldId: String(edge.targetFieldId),
           label: edge.label,
           relationshipType: edge.relationshipType,
         });

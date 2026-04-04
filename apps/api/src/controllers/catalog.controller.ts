@@ -36,7 +36,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
 export const createCollection = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const coll = await CollectionMetadata.create(req.body);
-    await ActivityService.logActivity(req.user._id, 'CREATED_COLLECTION', coll.name);
+    await ActivityService.logActivity(req.user._id, 'CREATED_COLLECTION', coll.slug);
     sendSuccess(res, 201, coll);
   } catch (err) { next(err); }
 };
@@ -45,7 +45,7 @@ export const updateCollection = async (req: Request, res: Response, next: NextFu
   try {
     const coll = await CollectionMetadata.findByIdAndUpdate(req.params.id, req.body, { new: true }).lean();
     if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
-    await ActivityService.logActivity(req.user._id, 'UPDATED_COLLECTION', coll.name);
+    await ActivityService.logActivity(req.user._id, 'UPDATED_COLLECTION', coll.slug);
     sendSuccess(res, 200, coll);
   } catch (err) { next(err); }
 };
@@ -56,11 +56,11 @@ export const deleteCollection = async (req: Request, res: Response, next: NextFu
     if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
 
     // Cascade: delete relationships and clean FK references in other collections
-    await SyncService.onCollectionDeleted(coll.name);
+    await SyncService.onCollectionDeleted(coll.slug);
 
     await FieldMetadata.deleteMany({ collectionId: coll._id });
     await coll.deleteOne();
-    await ActivityService.logActivity(req.user._id, 'DELETED_COLLECTION', coll.name);
+    await ActivityService.logActivity(req.user._id, 'DELETED_COLLECTION', coll.slug);
     sendSuccess(res, 200, { message: 'Collection deleted' });
   } catch (err) { next(err); }
 };
@@ -90,7 +90,7 @@ export const createField = async (req: Request, res: Response, next: NextFunctio
 
     // ── PK data validation: check actual data uniqueness ──
     if (req.body.isPrimaryKey) {
-      await SyncService.validatePrimaryKeyData(req.body.collectionId, req.body.name);
+      await SyncService.validatePrimaryKeyData(req.body.collectionId, req.body.fieldName);
     }
 
     // ── FK validation: target must be PK + referential integrity ──
@@ -104,16 +104,16 @@ export const createField = async (req: Request, res: Response, next: NextFunctio
       const targetField = await FieldMetadata.findById(req.body.targetFieldId).lean();
       if (targetField) {
         await SyncService.validateForeignKeyIntegrity(
-          req.body.collectionId, req.body.name,
-          req.body.targetCollectionId, targetField.name
+          req.body.collectionId, req.body.fieldName,
+          req.body.targetCollectionId, targetField.fieldName
         );
       }
     }
 
-    // Auto-derive displayName from field name
+    // Auto-derive displayName from fieldName if not provided
     const fieldData = {
       ...req.body,
-      displayName: req.body.name
+      displayName: req.body.displayName || req.body.fieldName
         .replace(/_/g, ' ')
         .replace(/([a-z])([A-Z])/g, '$1 $2')
         .replace(/\b\w/g, (c: string) => c.toUpperCase()),
@@ -135,31 +135,31 @@ export const createField = async (req: Request, res: Response, next: NextFunctio
     try {
       const db = (FieldMetadata.db as any).db;
       if (db) {
-        await db.collection(coll.name).updateMany(
-          { [field.name]: { $exists: false } },
-          { $set: { [field.name]: null } },
+        await db.collection(coll.slug).updateMany(
+          { [field.fieldName]: { $exists: false } },
+          { $set: { [field.fieldName]: null } },
         );
       }
     } catch (err) {
-      console.error(`[CatalogController] Failed to initialize field ${field.name} with null:`, err);
+      console.error(`[CatalogController] Failed to initialize field ${field.fieldName} with null:`, err);
     }
 
     // ── Auto-generate LLM description right after creation ──
     try {
       const { description } = await LLMService.generateFieldDescription(
-        field.name,
+        field.fieldName,
         coll.name,
-        field.type,
+        field.dataType,
         coll.module,
       );
       field.aiDescription = description;
       field.descriptionSource = 'ai';
       await field.save();
     } catch (err) {
-      console.error(`[CatalogController] Initial AI generation failed for ${field.name}:`, err);
+      console.error(`[CatalogController] Initial AI generation failed for ${field.fieldName}:`, err);
     }
 
-    await ActivityService.logActivity(req.user._id, 'CREATED_FIELD', field.name);
+    await ActivityService.logActivity(req.user._id, 'CREATED_FIELD', field.fieldName);
     sendSuccess(res, 201, {
       ...field.toObject(),
       description: field.manualDescription || field.aiDescription || null,
@@ -186,7 +186,7 @@ export const updateField = async (req: Request, res: Response, next: NextFunctio
 
     // ── PK data validation: check actual data uniqueness when turning PK on ──
     if (newIsPk && !field.isPrimaryKey) {
-      await SyncService.validatePrimaryKeyData(field.collectionId, field.name);
+      await SyncService.validatePrimaryKeyData(field.collectionId, field.fieldName);
     }
 
     // ── FK validation: target must be PK + referential integrity ──
@@ -201,8 +201,8 @@ export const updateField = async (req: Request, res: Response, next: NextFunctio
         const targetField = await FieldMetadata.findById(effectiveTargetFieldId).lean();
         if (targetField) {
           await SyncService.validateForeignKeyIntegrity(
-            field.collectionId, field.name,
-            effectiveTargetCollId, targetField.name
+            field.collectionId, field.fieldName,
+            effectiveTargetCollId, targetField.fieldName
           );
         }
       }
@@ -269,7 +269,7 @@ export const updateField = async (req: Request, res: Response, next: NextFunctio
       await SyncService.removeRelationshipForField(field);
     }
 
-    await ActivityService.logActivity(req.user._id, 'UPDATED_FIELD', field.name);
+    await ActivityService.logActivity(req.user._id, 'UPDATED_FIELD', field.fieldName);
     sendSuccess(res, 200, {
       ...field.toObject(),
       description: field.manualDescription || field.aiDescription || null,
@@ -287,7 +287,7 @@ export const deleteField = async (req: Request, res: Response, next: NextFunctio
     await SyncService.onFieldDeleted(field);
 
     await field.deleteOne();
-    await ActivityService.logActivity(req.user._id, 'DELETED_FIELD', field.name);
+    await ActivityService.logActivity(req.user._id, 'DELETED_FIELD', field.fieldName);
     sendSuccess(res, 200, { message: 'Field deleted' });
   } catch (err) { next(err); }
 };
@@ -308,9 +308,9 @@ export const generateFieldDescription = async (req: Request, res: Response, next
     const collection = field.collectionId as any;
 
     const { description, source } = await LLMService.generateFieldDescription(
-      field.name,
+      field.fieldName,
       collection.name,
-      field.type,
+      field.dataType,
       collection.module,
     );
 
@@ -320,7 +320,7 @@ export const generateFieldDescription = async (req: Request, res: Response, next
     }
     await field.save();
 
-    await ActivityService.logActivity(req.user._id, 'GENERATED_DESCRIPTION', field.name);
+    await ActivityService.logActivity(req.user._id, 'GENERATED_DESCRIPTION', field.fieldName);
     sendSuccess(res, 200, {
       description,
       source,
@@ -361,9 +361,9 @@ export const bulkGenerateDescriptions = async (req: Request, res: Response, next
         if (!collection) continue;
 
         const { description } = await LLMService.generateFieldDescription(
-          f.name,
+          f.fieldName,
           collection.name,
-          f.type,
+          f.dataType,
           collection.module,
         );
 
@@ -381,7 +381,7 @@ export const bulkGenerateDescriptions = async (req: Request, res: Response, next
         updated++;
       } catch (e) {
         failed++;
-        errors.push(`${f.name}: ${(e as Error).message}`);
+        errors.push(`${f.fieldName}: ${(e as Error).message}`);
       }
     }
 

@@ -42,6 +42,7 @@ function getCaretCoordinates(element: HTMLTextAreaElement, position: number) {
 
 interface DictionaryEntry {
   name: string;
+  slug: string;
   fields: string[];
 }
 
@@ -95,7 +96,7 @@ export function FormulaAutocomplete({ value, onChange, placeholder, className, r
       const collName = parts[0];
       const searchField = parts[1] || '';
       
-      const coll = dictionary.find(d => d.name.toLowerCase() === collName.toLowerCase());
+      const coll = dictionary.find(d => d.slug.toLowerCase() === collName.toLowerCase());
       if (coll) {
         suggestions = coll.fields
           .filter(f => f.toLowerCase().includes(searchField.toLowerCase()))
@@ -110,8 +111,8 @@ export function FormulaAutocomplete({ value, onChange, placeholder, className, r
         .map(f => ({ label: f, type: 'function' as const, insertText: f }));
         
       const collMatches = dictionary
-        .filter(d => d.name.toLowerCase().includes(lowerWord))
-        .map(d => ({ label: d.name, type: 'collection' as const, insertText: d.name }));
+        .filter(d => d.slug.toLowerCase().includes(lowerWord) || d.name.toLowerCase().includes(lowerWord))
+        .map(d => ({ label: d.slug, type: 'collection' as const, insertText: d.slug }));
 
       suggestions = [...funcMatches, ...collMatches];
     }

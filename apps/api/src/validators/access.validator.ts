@@ -43,7 +43,8 @@ export const createUserSchema = z.object({
     email: z.string().email(),
     name: z.string().optional(),
     password: z.string().min(6),
-    role: z.enum(['platform_admin', 'data_steward', 'analyst', 'viewer']).default('viewer')
+    role: z.enum(['platform_admin', 'data_steward', 'analyst', 'viewer']).default('viewer'),
+    groupIds: z.array(z.string()).optional()
   })
 });
 

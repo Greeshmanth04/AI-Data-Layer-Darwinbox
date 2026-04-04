@@ -1,17 +1,19 @@
-import mongoose, { Schema, Document } from 'mongoose';
+    import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ICollectionMetadata extends Document {
+  slug: string;
   name: string;
-  displayName: string;
-  module: string;
+  module: 'Core' | 'Recruitment' | 'Time' | 'Payroll';
   description?: string;
+  recordCount: number;
 }
 
 const CollectionMetadataSchema = new Schema<ICollectionMetadata>({
-  name: { type: String, required: true, unique: true },
-  displayName: { type: String, required: true },
-  module: { type: String, required: true },
-  description: { type: String }
+  slug: { type: String, required: true, unique: true },
+  name: { type: String, required: true },
+  module: { type: String, required: true, enum: ['Core', 'Recruitment', 'Time', 'Payroll'] },
+  description: { type: String },
+  recordCount: { type: Number, default: 0 }
 }, { timestamps: true });
 
-export const CollectionMetadata = mongoose.model<ICollectionMetadata>('CollectionMetadata', CollectionMetadataSchema);
+export const CollectionMetadata = mongoose.model<ICollectionMetadata>('CollectionMetadata', CollectionMetadataSchema, 'collections');

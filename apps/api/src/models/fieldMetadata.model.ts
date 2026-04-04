@@ -2,9 +2,9 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IFieldMetadata extends Document {
   collectionId: mongoose.Types.ObjectId;
-  name: string;
+  fieldName: string;
   displayName: string;
-  type: string;
+  dataType: string;
   isCustom: boolean;
   isPrimaryKey: boolean;
   isForeignKey: boolean;
@@ -15,28 +15,31 @@ export interface IFieldMetadata extends Document {
   aiDescription?: string;
   manualDescription?: string;
   descriptionSource: 'ai' | 'manual' | 'none';
+  exampleValues: string[];
   tags: string[];
 }
 
 const FieldMetadataSchema = new Schema<IFieldMetadata>({
   collectionId: { type: Schema.Types.ObjectId, ref: 'CollectionMetadata', required: true },
-  name: { type: String, required: true },
-  displayName: { type: String, required: true },
-  type: { type: String, required: true },
-  isCustom: { type: Boolean, default: false },
+  fieldName:    { type: String, required: true },
+  displayName:  { type: String, required: true },
+  dataType:     { type: String, required: true },
+  isCustom:     { type: Boolean, default: false },
   isPrimaryKey: { type: Boolean, default: false },
   isForeignKey: { type: Boolean, default: false },
   targetCollectionId: { type: Schema.Types.ObjectId, ref: 'CollectionMetadata' },
-  targetFieldId: { type: Schema.Types.ObjectId, ref: 'FieldMetadata' },
-  relationshipLabel: { type: String },
-  relationshipType: { type: String, enum: ['one-to-one', 'one-to-many', 'many-to-one'] },
-  aiDescription: { type: String },
-  manualDescription: { type: String },
-  descriptionSource: { type: String, enum: ['ai', 'manual', 'none'], default: 'none' },
-  tags: { type: [String], default: [] }
+  targetFieldId:      { type: Schema.Types.ObjectId, ref: 'FieldMetadata' },
+  relationshipLabel:  { type: String },
+  relationshipType:   { type: String, enum: ['one-to-one', 'one-to-many', 'many-to-one'] },
+  aiDescription:      { type: String },
+  manualDescription:  { type: String },
+  descriptionSource:  { type: String, enum: ['ai', 'manual', 'none'], default: 'none' },
+  exampleValues:      { type: [String], default: [] },
+  tags:               { type: [String], default: [] },
 }, { timestamps: true });
 
-FieldMetadataSchema.index({ collectionId: 1, name: 1 }, { unique: true });
-FieldMetadataSchema.index({ name: 'text', aiDescription: 'text', manualDescription: 'text', tags: 'text' });
+FieldMetadataSchema.index({ collectionId: 1, fieldName: 1 }, { unique: true });
+FieldMetadataSchema.index({ fieldName: 'text', displayName: 'text', aiDescription: 'text', manualDescription: 'text', tags: 'text' });
 
-export const FieldMetadata = mongoose.model<IFieldMetadata>('FieldMetadata', FieldMetadataSchema);
+export const FieldMetadata = mongoose.model<IFieldMetadata>('FieldMetadata', FieldMetadataSchema, 'fields');
+

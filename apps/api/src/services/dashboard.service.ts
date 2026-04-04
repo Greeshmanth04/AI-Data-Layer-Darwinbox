@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { CatalogService } from './catalog.service';
 import { ActivityService } from './activity.service';
-import { Group } from '../models/group.model';
+import { UserGroup } from '../models/userGroup.model';
 import { MetricDefinition } from '../models/metricDefinition.model';
 
 export class DashboardService {
@@ -21,11 +21,11 @@ export class DashboardService {
       totalFields += sfCount;
       documentedFields += dfCount;
 
-      const totalRecords = await mongoose.connection.db!.collection(coll.name).countDocuments();
+      const totalRecords = await mongoose.connection.db!.collection(coll.slug).countDocuments();
 
       coverageBreakdown.push({
         _id: coll._id,
-        collectionName: coll.displayName || coll.name,
+        collectionName: coll.name,
         schemaFields: sfCount,
         documentedFields: dfCount,
         coveragePercentage: sfCount === 0 ? 0 : Math.round((dfCount / sfCount) * 100),
@@ -34,7 +34,7 @@ export class DashboardService {
     }
 
     const activeMetricsCount = await MetricDefinition.countDocuments();
-    const userGroupsCount = await Group.countDocuments();
+    const userGroupsCount = await UserGroup.countDocuments();
 
     return {
       totalCollections: readableCollections.length,
@@ -58,14 +58,16 @@ export class DashboardService {
       const missing = detail.fields.filter((f: any) => !f.description || f.description.trim() === '');
       missing.forEach((f: any) => undocumentedFields.push(`${coll.name}.${f.name}`));
 
-      const hasPermission = await Group.exists({ "permissions.collectionName": coll.name, "permissions.canRead": true });
+      const hasPermission = await UserGroup.exists({ "permissions.collectionId": coll._id, "permissions.canRead": true });
       if (!hasPermission) unassignedCollections.push(coll.name);
     }
 
     const allMetrics = await MetricDefinition.find().lean();
-    const readableMetrics = allMetrics.filter(m => readableCollections.some(c => c.name === m.baseCollection));
+    const readableMetrics = allMetrics.filter(m => 
+      !m.collectionIds?.length || m.collectionIds.some(id => readableCollections.some(c => c._id.toString() === id.toString()))
+    );
     // Require metrics to have at least 1 preview evaluation to be considered "previewed"
-    const metricsNoPreview = readableMetrics.filter(m => !m.previews || m.previews.length === 0).map(m => m.name);
+    const metricsNoPreview = readableMetrics.filter(m => !m.lastComputedAt).map(m => m.name);
 
     return {
       undocumentedFields,

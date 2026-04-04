@@ -118,8 +118,8 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
 
   const { collections = [], relationships = [] } = data || {};
 
-  const sourceCollectionId = collections.find((c: any) => c.name === edgeForm.sourceCollection)?._id;
-  const targetCollectionId = collections.find((c: any) => c.name === edgeForm.targetCollection)?._id;
+  const sourceCollectionId = collections.find((c: any) => c.slug === edgeForm.sourceCollection)?._id;
+  const targetCollectionId = collections.find((c: any) => c.slug === edgeForm.targetCollection)?._id;
 
   const { data: sourceCollData } = useQuery({
     queryKey: ['collection', sourceCollectionId],
@@ -146,21 +146,21 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
         const savedPositions = savedPositionsStr ? JSON.parse(savedPositionsStr) : {};
 
         return collections.map((coll: any, index: number) => {
-          const existing = currentNodes.find(n => n.id === coll.name);
+          const existing = currentNodes.find(n => n.id === coll.slug);
           let position = { x: (index % 3) * 320 + 80, y: Math.floor(index / 3) * 200 + 80 };
 
           if (existing) {
             position = existing.position;
-          } else if (savedPositions[coll.name]) {
-            position = savedPositions[coll.name];
+          } else if (savedPositions[coll.slug]) {
+            position = savedPositions[coll.slug];
           }
 
           return {
-            id: coll.name,
+            id: coll.slug,
             type: 'entity',
             position,
             data: {
-              label: coll.displayName,
+              label: coll.name,
               fieldCount: coll.fieldCount,
               rowCount: coll.estimatedRecords
             }
@@ -278,11 +278,11 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
     localStorage.removeItem('graphLayoutPositions');
     setNodes(collections.map((coll: any, index: number) => {
       return {
-        id: coll.name,
+        id: coll.slug,
         type: 'entity',
         position: { x: (index % 3) * 320 + 80, y: Math.floor(index / 3) * 200 + 80 },
         data: {
-          label: coll.displayName,
+          label: coll.name,
           fieldCount: coll.fieldCount,
           rowCount: coll.estimatedRecords
         }
@@ -443,7 +443,18 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
                   </div>
                 </div>
                 <div className="p-6 flex gap-2 border-t border-gray-100 bg-gray-50/50 flex-shrink-0">
-                  <button onClick={() => { setEdgeForm({ sourceCollection: rel.sourceCollection, targetCollection: rel.targetCollection, sourceField: rel.sourceField, targetField: rel.targetField, relationshipType: rel.relationshipType, label: rel.label || '' }); setError(null); setShowEditForm(true); }} className="flex-1 flex items-center justify-center gap-2 bg-white text-gray-700 hover:bg-gray-50 py-2.5 rounded-lg transition-colors border border-gray-200 shadow-sm font-semibold text-[13px]">
+                  <button onClick={() => { 
+                    setEdgeForm({ 
+                      sourceCollection: rel.sourceCollection, 
+                      targetCollection: rel.targetCollection, 
+                      sourceField: rel.sourceField, 
+                      targetField: rel.targetField, 
+                      relationshipType: rel.relationshipType === 'one-to-one' ? '1:1' : rel.relationshipType === 'many-to-one' ? 'M:N' : '1:N', 
+                      label: rel.label || '' 
+                    }); 
+                    setError(null); 
+                    setShowEditForm(true); 
+                  }} className="flex-1 flex items-center justify-center gap-2 bg-white text-gray-700 hover:bg-gray-50 py-2.5 rounded-lg transition-colors border border-gray-200 shadow-sm font-semibold text-[13px]">
                     Edit Connection
                   </button>
                   <button onClick={() => deleteEdge.mutate(rel._id)} className="flex items-center justify-center gap-2 bg-white text-red-600 hover:bg-red-50 py-2.5 px-4 rounded-lg transition-colors border border-gray-200 shadow-sm font-semibold text-[13px]">
@@ -473,11 +484,11 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
               <div className="flex gap-3">
                 <select disabled={showEditForm} value={edgeForm.sourceCollection} onChange={e => setEdgeForm({ ...edgeForm, sourceCollection: e.target.value, sourceField: '' })} className="w-full border border-gray-200 p-2.5 rounded-lg text-[13px] disabled:bg-gray-50 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-800">
                   <option value="" disabled>Source Collection</option>
-                  {collections.map((c: any) => <option key={c._id} value={c.name}>{c.displayName}</option>)}
+                  {collections.map((c: any) => <option key={c._id} value={c.slug}>{c.name}</option>)}
                 </select>
                 <select disabled={showEditForm} value={edgeForm.targetCollection} onChange={e => setEdgeForm({ ...edgeForm, targetCollection: e.target.value, targetField: '' })} className="w-full border border-gray-200 p-2.5 rounded-lg text-[13px] disabled:bg-gray-50 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-800">
                   <option value="" disabled>Target Collection</option>
-                  {collections.map((c: any) => <option key={c._id} value={c.name}>{c.displayName}</option>)}
+                  {collections.map((c: any) => <option key={c._id} value={c.slug}>{c.name}</option>)}
                 </select>
               </div>
 
@@ -485,12 +496,12 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
                 <select disabled={!edgeForm.sourceCollection} value={edgeForm.sourceField} onChange={e => { setEdgeForm({ ...edgeForm, sourceField: e.target.value }); setError(null); }} className="w-full border border-gray-200 p-2.5 rounded-lg text-[13px] font-mono focus:ring-2 disabled:bg-gray-50 bg-white text-gray-800 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
                   <option value="" disabled>Source Field</option>
                   <option value="_id">_id</option>
-                  {sourceFields.map((f: any) => <option key={f._id} value={f.name}>{f.name}</option>)}
+                  {sourceFields.map((f: any) => <option key={f._id} value={f.fieldName}>{f.fieldName}</option>)}
                 </select>
                 <select disabled={!edgeForm.targetCollection} value={edgeForm.targetField} onChange={e => { setEdgeForm({ ...edgeForm, targetField: e.target.value }); setError(null); }} className="w-full border border-gray-200 p-2.5 rounded-lg text-[13px] font-mono focus:ring-2 disabled:bg-gray-50 bg-white text-gray-800 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
                   <option value="" disabled>Target Field</option>
                   <option value="_id">_id</option>
-                  {targetFields.map((f: any) => <option key={f._id} value={f.name}>{f.name}</option>)}
+                  {targetFields.map((f: any) => <option key={f._id} value={f.fieldName}>{f.fieldName}</option>)}
                 </select>
               </div>
 
@@ -506,10 +517,27 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
             <div className="flex justify-end gap-3 mt-8">
               <button onClick={() => { setShowCreateForm(false); setShowEditForm(false); }} className="px-5 py-2.5 text-[13px] text-gray-600 font-semibold hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
               <button onClick={() => {
+                const mapType = (t: string) => t === '1:1' ? 'one-to-one' : t === 'M:N' ? 'many-to-one' : 'one-to-many';
+                
+                const sColl = collections.find((c: any) => c.slug === edgeForm.sourceCollection);
+                const tColl = collections.find((c: any) => c.slug === edgeForm.targetCollection);
+                
+                const sFieldId = sourceFields.find((f: any) => f.fieldName === edgeForm.sourceField)?._id || (edgeForm.sourceField === '_id' ? sourceFields.find((f: any) => f.isPrimaryKey)?._id : null);
+                const tFieldId = targetFields.find((f: any) => f.fieldName === edgeForm.targetField)?._id || (edgeForm.targetField === '_id' ? targetFields.find((f: any) => f.isPrimaryKey)?._id : null);
+                
+                const payload = {
+                  sourceCollectionId: sColl?._id,
+                  targetCollectionId: tColl?._id,
+                  sourceFieldId: sFieldId,
+                  targetFieldId: tFieldId,
+                  relationshipType: mapType(edgeForm.relationshipType),
+                  label: edgeForm.label
+                };
+
                 if (showEditForm && selectedEdge) {
-                  updateEdgeMutation.mutate({ id: selectedEdge, payload: edgeForm });
+                  updateEdgeMutation.mutate({ id: selectedEdge, payload });
                 } else {
-                  createEdgeMutation.mutate(edgeForm);
+                  createEdgeMutation.mutate(payload);
                 }
               }} disabled={createEdgeMutation.isPending || updateEdgeMutation.isPending} className="px-6 py-2.5 bg-indigo-600 text-white text-[13px] font-bold rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                 {showEditForm ? 'Save Changes' : 'Create Edge'}

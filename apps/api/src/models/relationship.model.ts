@@ -1,25 +1,25 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IRelationship extends Document {
-  sourceCollection: string;
-  targetCollection: string;
-  sourceField: string;
-  targetField: string;
+  sourceCollectionId: mongoose.Types.ObjectId;
+  targetCollectionId: mongoose.Types.ObjectId;
+  sourceFieldId: mongoose.Types.ObjectId;
+  targetFieldId: mongoose.Types.ObjectId;
   label?: string;
-  relationshipType: '1:1' | '1:N' | 'M:N';
+  relationshipType: 'one-to-one' | 'one-to-many' | 'many-to-one';
   isAutoDetected: boolean;
 }
 
 const RelationshipSchema = new Schema<IRelationship>({
-  sourceCollection: { type: String, required: true },
-  targetCollection: { type: String, required: true },
-  sourceField: { type: String, required: true },
-  targetField: { type: String, required: true },
+  sourceCollectionId: { type: Schema.Types.ObjectId, ref: 'CollectionMetadata', required: true },
+  targetCollectionId: { type: Schema.Types.ObjectId, ref: 'CollectionMetadata', required: true },
+  sourceFieldId: { type: Schema.Types.ObjectId, ref: 'FieldMetadata', required: true },
+  targetFieldId: { type: Schema.Types.ObjectId, ref: 'FieldMetadata', required: true },
   label: { type: String },
-  relationshipType: { type: String, enum: ['1:1', '1:N', 'M:N'], default: '1:N' },
+  relationshipType: { type: String, enum: ['one-to-one', 'one-to-many', 'many-to-one'], default: 'one-to-many' },
   isAutoDetected: { type: Boolean, default: false }
 }, { timestamps: true });
 
-RelationshipSchema.index({ sourceCollection: 1, targetCollection: 1, sourceField: 1, targetField: 1 }, { unique: true });
+RelationshipSchema.index({ sourceCollectionId: 1, targetCollectionId: 1, sourceFieldId: 1, targetFieldId: 1 }, { unique: true });
 
-export const Relationship = mongoose.model<IRelationship>('Relationship', RelationshipSchema);
+export const Relationship = mongoose.model<IRelationship>('Relationship', RelationshipSchema, 'relationships');

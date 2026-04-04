@@ -446,7 +446,7 @@ export default function Metrics() {
                     className="w-full border border-slate-200 p-2.5 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                   >
                     <option value="" disabled>Select collection</option>
-                    {collections.map((c: any) => <option key={c._id} value={c.name}>{c.displayName}</option>)}
+                    {collections.map((c: any) => <option key={c._id} value={c.slug}>{c.name}</option>)}
                   </select>
                 </div>
               </div>

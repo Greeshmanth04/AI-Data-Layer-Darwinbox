@@ -326,13 +326,13 @@ export default function AccessControl() {
             
             {groupSubTab === 'permissions' && (
                <div className="space-y-6">
-                 {dictionary.map((coll: any) => {
-                    const existingPerm = selectedGroup.permissions?.find((p:any) => p.collectionName === coll.name);
+                  {dictionary.map((coll: any) => {
+                    const existingPerm = selectedGroup.permissions?.find((p:any) => p.collectionSlug === coll.slug);
                     const hasAccess = !!existingPerm?.canRead;
                     const isPartial = hasAccess && (existingPerm.allowedFields?.length > 0 || existingPerm.deniedFields?.length > 0 || existingPerm.rowFilters?.length > 0);
                     
                     return (
-                      <div key={coll.name} className={`bg-white border rounded-xl shadow-sm transition-colors ${hasAccess ? 'border-indigo-200' : 'border-slate-200'}`}>
+                      <div key={coll.slug} className={`bg-white border rounded-xl shadow-sm transition-colors ${hasAccess ? 'border-indigo-200' : 'border-slate-200'}`}>
                          <div className="flex items-center justify-between p-5">
                             <div className="flex flex-col">
                                <div className="flex items-center gap-3 mb-1">
@@ -348,8 +348,8 @@ export default function AccessControl() {
                                <label className="flex items-center cursor-pointer">
                                  <div className="relative">
                                    <input type="checkbox" className="sr-only" checked={hasAccess} onChange={(e) => {
-                                      if (e.target.checked) updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.name, data: { collectionName: coll.name, canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] }});
-                                      else deletePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.name });
+                                      if (e.target.checked) updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.slug, data: { collectionSlug: coll.slug, canRead: true, allowedFields: [], deniedFields: [], rowFilters: [] }});
+                                      else deletePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.slug });
                                    }}/>
                                    <div className={`block w-10 h-6 rounded-full transition-colors ${hasAccess ? 'bg-indigo-500' : 'bg-slate-200'}`}></div>
                                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${hasAccess ? 'translate-x-4' : 'translate-x-0'}`}></div>
@@ -392,7 +392,7 @@ export default function AccessControl() {
                                                     
                                                     updatePermissionMut.mutate({ 
                                                       groupId: selectedGroup._id, 
-                                                      collId: coll.name, 
+                                                      collId: coll.slug, 
                                                       data: { ...existingPerm, allowedFields: newFields }
                                                     });
                                                  }} 
@@ -414,7 +414,7 @@ export default function AccessControl() {
                                           <div key={i} className="flex gap-2 items-center">
                                              <select value={rf.field} className="flex-1 w-0 border border-slate-200 p-1.5 rounded text-xs outline-none focus:border-indigo-500 bg-white" onChange={(e)=>{
                                                  const newFilters = [...existingPerm.rowFilters]; newFilters[i].field = e.target.value;
-                                                 updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.name, data: { ...existingPerm, rowFilters: newFilters }});
+                                                 updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.slug, data: { ...existingPerm, rowFilters: newFilters }});
                                              }}>
                                                 <option value="" disabled>Select Field...</option>
                                                 {coll.fields.map((f:string) => <option key={f} value={f}>{f}</option>)}
@@ -422,7 +422,7 @@ export default function AccessControl() {
                                              
                                              <select value={rf.operator} className="flex-1 w-0 border border-slate-200 p-1.5 rounded text-xs outline-none focus:border-indigo-500 bg-white" onChange={(e)=>{
                                                  const newFilters = [...existingPerm.rowFilters]; newFilters[i].operator = e.target.value;
-                                                 updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.name, data: { ...existingPerm, rowFilters: newFilters }});
+                                                 updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.slug, data: { ...existingPerm, rowFilters: newFilters }});
                                              }}>
                                                <option value="eq">eq (=)</option>
                                                <option value="neq">neq (≠)</option>
@@ -437,12 +437,12 @@ export default function AccessControl() {
                                              <FilterValueInput initialValue={rf.value} onSave={(val) => {
                                                  if (val === rf.value) return; // ignore if no change
                                                  const newFilters = [...existingPerm.rowFilters]; newFilters[i].value = val;
-                                                 updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.name, data: { ...existingPerm, rowFilters: newFilters }});
+                                                 updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.slug, data: { ...existingPerm, rowFilters: newFilters }});
                                              }}/>
                                              
                                              <button onClick={()=>{
                                                  const newFilters = existingPerm.rowFilters.filter((_:any,idx:number)=>idx!==i);
-                                                 updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.name, data: { ...existingPerm, rowFilters: newFilters }});
+                                                 updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.slug, data: { ...existingPerm, rowFilters: newFilters }});
                                              }} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={14}/></button>
                                           </div>
                                        ))}
@@ -450,7 +450,7 @@ export default function AccessControl() {
                                      <button onClick={() => {
                                          const defaultField = coll.fields[0] || '';
                                          const newFilters = [...(existingPerm.rowFilters||[]), { field: defaultField, operator: 'eq', value: '' }];
-                                         updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.name, data: { ...existingPerm, rowFilters: newFilters }});
+                                         updatePermissionMut.mutate({ groupId: selectedGroup._id, collId: coll.slug, data: { ...existingPerm, rowFilters: newFilters }});
                                      }} className="text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded transition-colors w-full">+ Add Filter Condition</button>
                                   </div>
                                </div>

@@ -21,10 +21,10 @@ describe('RelationshipController Validation', () => {
         mockReq = {
             user: { _id: 'u1' },
             body: {
-                sourceCollection: 'employees',
-                targetCollection: 'departments',
-                sourceField: 'dept_id',
-                targetField: 'id'
+                sourceCollectionId: 'c1',
+                targetCollectionId: 'c2',
+                sourceFieldId: 'f1',
+                targetFieldId: 'f2'
             },
             params: {}
         };
@@ -36,7 +36,7 @@ describe('RelationshipController Validation', () => {
     });
 
     test('createRelationship should throw if source collection not found', async () => {
-        (CollectionMetadata.findOne as jest.Mock).mockReturnValue({ lean: () => Promise.resolve(null) });
+        (CollectionMetadata.findById as jest.Mock).mockReturnValue({ lean: () => Promise.resolve(null) });
 
         const { createRelationship } = require('../src/controllers/relationship.controller');
         await createRelationship(mockReq, mockRes, next);
@@ -46,13 +46,13 @@ describe('RelationshipController Validation', () => {
     });
 
     test('createRelationship should call SyncService validations', async () => {
-        (CollectionMetadata.findOne as jest.Mock)
+        (CollectionMetadata.findById as jest.Mock)
             .mockReturnValueOnce({ lean: () => Promise.resolve({ _id: 's1', name: 'employees' }) })
             .mockReturnValueOnce({ lean: () => Promise.resolve({ _id: 't1', name: 'departments' }) });
 
-        (FieldMetadata.findOne as jest.Mock)
-            .mockReturnValueOnce({ lean: () => Promise.resolve({ name: 'dept_id' }) })
-            .mockReturnValueOnce({ lean: () => Promise.resolve({ name: 'id' }) });
+        (FieldMetadata.findById as jest.Mock)
+            .mockReturnValueOnce({ lean: () => Promise.resolve({ fieldName: 'dept_id' }) })
+            .mockReturnValueOnce({ lean: () => Promise.resolve({ fieldName: 'id' }) });
 
         (Relationship.create as jest.Mock).mockResolvedValue({ toObject: () => ({}) });
 

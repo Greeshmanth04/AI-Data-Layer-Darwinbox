@@ -121,17 +121,22 @@ async function seed() {
   console.log('📦 Seeding PRD standard Collections & Fields...');
 
   // Clean up stale metadata to ensure PK/FK flags are fresh
-  await db.collection('fieldmetadatas').deleteMany({});
-  await db.collection('collectionmetadatas').deleteMany({});
+  await db.collection('fields').drop().catch(() => {});
+  await db.collection('fieldmetadatas').drop().catch(() => {});  // legacy name cleanup
+  await db.collection('collections').drop().catch(() => {});
+  await db.collection('collectionmetadatas').drop().catch(() => {});  // legacy name cleanup
+  await db.collection('relationships').drop().catch(() => {});
+  await db.collection('metrics').drop().catch(() => {});
 
   for (const group of metadata) {
     const collId = genId(`COLL_${group.slug}`);
-    await upsert(db, 'collectionmetadatas', { name: group.name }, {
+    await upsert(db, 'collections', { slug: group.slug }, {
       _id: collId,
+      slug: group.slug,
       name: group.name,
-      displayName: group.name,
       module: group.module,
       description: group.description,
+      recordCount: 20,
       createdAt: new Date(),
       updatedAt: new Date()
     });
@@ -160,12 +165,12 @@ async function seed() {
         }
       }
 
-      await upsert(db, 'fieldmetadatas', { collectionId: collId, name: f.fieldName }, {
+      await upsert(db, 'fields', { collectionId: collId, fieldName: f.fieldName }, {
         _id: fieldId,
         collectionId: collId,
-        name: f.fieldName,
+        fieldName: f.fieldName,
         displayName: humanName,
-        type: f.dataType,
+        dataType: f.dataType,
         isPrimaryKey: !!f.isPrimaryKey,
         isForeignKey: !!f.isForeignKey,
         isCustom: !!f.isCustom,
@@ -176,20 +181,14 @@ async function seed() {
         aiDescription: `The ${f.dataType} value for ${humanName} within the ${entity} record mapping.`,
         manualDescription: f.isCustom ? `Custom verified description for ${humanName}.` : null,
         descriptionSource: f.isCustom ? 'manual' : 'ai',
+        exampleValues: (f as any).exampleValues || [],
         tags: (f as any).tags || ['general']
       });
     }
   }
 
   // 2. HR Data Seed
-  // Clean up stale lowercase collections from previous seed runs
-  console.log('🧹 Dropping stale lowercase collections (if any)...');
-  const staleNames = ['employees', 'positions', 'offers', 'leave', 'attendance', 'payroll'];
-  for (const name of staleNames) {
-    try { await db.collection(name).drop(); } catch (_) { /* may not exist */ }
-  }
-
-  console.log('📄 Seeding Raw HR Data (20 Items each)...');
+  console.log('📄 Seeding Raw HR Data (20 Items each via idempotent upsert)...');
   const positions = Array.from({ length: 20 }, (_, i) => ({
     position_id: `POS-${String(i + 1).padStart(3, '0')}`,
     title: i === 0 ? 'CEO' : i < 5 ? 'Director' : 'Engineer',
@@ -200,7 +199,7 @@ async function seed() {
     hiring_manager_id: i > 0 ? `EMP-001` : null
   }));
   for (const pos of positions) {
-    await upsert(db, 'Positions', { position_id: pos.position_id }, pos);
+    await upsert(db, 'positions', { position_id: pos.position_id }, pos);
   }
 
   const employees = Array.from({ length: 20 }, (_, i) => ({
@@ -219,7 +218,7 @@ async function seed() {
     salary: 50000 + (i * 2000)
   }));
   for (const emp of employees) {
-    await upsert(db, 'Employees', { employee_id: emp.employee_id }, emp);
+    await upsert(db, 'employees', { employee_id: emp.employee_id }, emp);
   }
 
   const offers = Array.from({ length: 20 }, (_, i) => ({
@@ -233,7 +232,7 @@ async function seed() {
     joining_date: new Date()
   }));
   for (const offer of offers) {
-    await upsert(db, 'Offers', { offer_id: offer.offer_id }, offer);
+    await upsert(db, 'offers', { offer_id: offer.offer_id }, offer);
   }
 
   const leave = Array.from({ length: 20 }, (_, i) => ({
@@ -247,7 +246,7 @@ async function seed() {
     applied_on: new Date()
   }));
   for (const l of leave) {
-    await upsert(db, 'Leave', { leave_id: l.leave_id }, l);
+    await upsert(db, 'leave', { leave_id: l.leave_id }, l);
   }
 
   const attendance = Array.from({ length: 20 }, (_, i) => ({
@@ -261,7 +260,7 @@ async function seed() {
     hours_worked: 8
   }));
   for (const att of attendance) {
-    await upsert(db, 'Attendance', { attendance_id: att.attendance_id }, att);
+    await upsert(db, 'attendance', { attendance_id: att.attendance_id }, att);
   }
 
   const payroll = Array.from({ length: 20 }, (_, i) => ({
@@ -276,34 +275,29 @@ async function seed() {
     payment_status: 'paid'
   }));
   for (const pay of payroll) {
-    await upsert(db, 'Payroll', { payroll_id: pay.payroll_id }, pay);
+    await upsert(db, 'payroll', { payroll_id: pay.payroll_id }, pay);
   }
 
-  // 3. Relationships Seed — uses string-based collection/field names (matching Mongoose model)
-  console.log('🔗 Seeding Relationships (string-based, matching Mongoose schema)...');
+  // 3. Relationships Seed — uses ObjectID bindings
+  console.log('🔗 Seeding Relationships (ObjectIds matching MongoDB generic mappings)...');
   for (const r of seedRelationships) {
-    const collName = metadata.find(m => m.slug === r.sCol)?.name || r.sCol;
-    const targetCollName = metadata.find(m => m.slug === r.tCol)?.name || r.tCol;
-
-    // Map catalog relationship types to Relationship model types
-    const relTypeMap: Record<string, string> = {
-      'many-to-one': 'M:N',
-      'one-to-many': '1:N',
-      'one-to-one': '1:1',
-    };
+    const sCollId = genId(`COLL_${r.sCol}`);
+    const tCollId = genId(`COLL_${r.tCol}`);
+    const sFieldId = genId(`FIELD_${r.sCol}_${r.sField}`);
+    const tFieldId = genId(`FIELD_${r.tCol}_${r.tField}`);
 
     await upsert(db, 'relationships', {
-      sourceCollection: collName,
-      targetCollection: targetCollName,
-      sourceField: r.sField,
-      targetField: r.tField,
+      sourceCollectionId: sCollId,
+      sourceFieldId: sFieldId,
+      targetCollectionId: tCollId,
+      targetFieldId: tFieldId,
     }, {
-      sourceCollection: collName,
-      targetCollection: targetCollName,
-      sourceField: r.sField,
-      targetField: r.tField,
+      sourceCollectionId: sCollId,
+      targetCollectionId: tCollId,
+      sourceFieldId: sFieldId,
+      targetFieldId: tFieldId,
       label: r.label,
-      relationshipType: relTypeMap[r.type] || '1:N',
+      relationshipType: r.type,
       isAutoDetected: true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -337,38 +331,39 @@ async function seed() {
   console.log('🛡️ Seeding PRD 11.7 mandatory Permission Groups...');
 
   // Clean up stale groups/users to ensure seed permissions fully overwrite any UI changes
-  await db.collection('groups').deleteMany({});
-  await db.collection('usergroups').deleteMany({});
-  await db.collection('users').deleteMany({});
+  await db.collection('groups').drop().catch(() => {});
+  await db.collection('usergroups').drop().catch(() => {});
+  await db.collection('users').drop().catch(() => {});
 
   const pwd = await bcrypt.hash('darwinbox123', 10);
 
   // Create Groups
   const hrPerms = metadata.map(m => ({
-    collectionName: m.name,
+    collectionId: genId(`COLL_${m.slug}`),
     canRead: true,
     allowedFields: [],
     deniedFields: [],
     rowFilters: []
   }));
 
-  await upsert(db, 'groups', { name: 'HR Admins' }, {
+  await upsert(db, 'usergroups', { name: 'HR Admins' }, {
     _id: genId('G_HR'),
     name: 'HR Admins',
     description: 'Full data access across all HR modules',
-    permissions: hrPerms
+    permissions: hrPerms,
+    members: []
   });
 
   const payrollPerms = [
     {
-      collectionName: 'Employees',
+      collectionId: genId('COLL_employees'),
       canRead: true,
       allowedFields: [],
       deniedFields: ['salary'],
       rowFilters: []
     },
     {
-      collectionName: 'Payroll',
+      collectionId: genId('COLL_payroll'),
       canRead: true,
       allowedFields: [],
       deniedFields: [],
@@ -376,23 +371,24 @@ async function seed() {
     }
   ];
 
-  await upsert(db, 'groups', { name: 'Payroll Team' }, {
+  await upsert(db, 'usergroups', { name: 'Payroll Team' }, {
     _id: genId('G_PAY'),
     name: 'Payroll Team',
     description: 'Sensitive employee data masked, full payroll control',
-    permissions: payrollPerms
+    permissions: payrollPerms,
+    members: []
   });
 
   const regionalPerms = [
     {
-      collectionName: 'Employees',
+      collectionId: genId('COLL_employees'),
       canRead: true,
       allowedFields: [],
       deniedFields: ['salary', 'designation', 'manager_id'],
       rowFilters: [{ field: 'region', operator: 'eq', value: 'South' }]
     },
     {
-      collectionName: 'Leave',
+      collectionId: genId('COLL_leave'),
       canRead: true,
       allowedFields: [],
       deniedFields: [],
@@ -400,11 +396,12 @@ async function seed() {
     }
   ];
 
-  await upsert(db, 'groups', { name: 'Regional Viewer' }, {
+  await upsert(db, 'usergroups', { name: 'Regional Viewer' }, {
     _id: genId('G_REGIONAL'),
     name: 'Regional Viewer',
     description: 'South Branch Context Only with mandatory masking',
-    permissions: regionalPerms
+    permissions: regionalPerms,
+    members: []
   });
 
   // Create PRD-mandated Users
@@ -416,6 +413,8 @@ async function seed() {
   ];
 
   for (const u of userSeeds) {
+    const groupIdsForUser = ((u as any).groups || []).map((g: string) => genId(g));
+    
     await upsert(db, 'users', { email: u.email }, {
       _id: u._id,
       email: u.email,
@@ -423,18 +422,16 @@ async function seed() {
       role: u.role,
       status: u.status,
       passwordHash: pwd,
+      groupIds: groupIdsForUser,
       createdAt: new Date()
     });
 
     if ((u as any).groups) {
-      // Clear and re-fill UserGroups mapping
-      await db.collection('usergroups').deleteMany({ userId: u._id });
       for (const gKey of (u as any).groups) {
-        await upsert(db, 'usergroups', { userId: u._id, groupId: genId(gKey) }, {
-          userId: u._id,
-          groupId: genId(gKey),
-          createdAt: new Date()
-        });
+        await db.collection('usergroups').updateOne(
+          { _id: genId(gKey) },
+          { $addToSet: { members: u._id } }
+        );
       }
     }
   }

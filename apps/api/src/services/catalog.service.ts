@@ -14,15 +14,15 @@ export class CatalogService {
 
     for (const coll of collections) {
       // Layer 1: Collection access
-      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, false, userCtx);
+      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.slug, false, userCtx);
       if (resolved && resolved.canRead) {
         const { allowed, denied } = resolved.effectiveFields;
         const collFields = allFields.filter(f => String(f.collectionId) === String(coll._id));
 
         // Layer 2: Count only permitted fields
         const permittedCount = collFields.filter(f => {
-          if (denied.includes(f.name)) return false;
-          if (allowed.length > 0 && !allowed.includes(f.name)) return false;
+          if (denied.includes(f.fieldName)) return false;
+          if (allowed.length > 0 && !allowed.includes(f.fieldName)) return false;
           return true;
         }).length;
 
@@ -31,7 +31,7 @@ export class CatalogService {
         // Layer 3: Count only row-accessible documents
         const rowQuery = PermissionService.buildMongoQuery(resolved);
         const estimatedRecords = db
-          ? await db.collection(coll.name).countDocuments(rowQuery).catch(() => 0)
+          ? await db.collection(coll.slug).countDocuments(rowQuery).catch(() => 0)
           : 0;
 
         permitted.push({ ...coll, fieldCount: permittedCount, estimatedRecords });
@@ -54,7 +54,7 @@ export class CatalogService {
 
     // Layer 1: Collection access check (throwOnDeny = true — server enforces, never the client)
     const userCtx = await PermissionService.getResolutionContext(userId);
-    const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, true, userCtx);
+    const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.slug, true, userCtx);
     if (!resolved || !resolved.canRead) {
       throw new AppError(403, 'COLLECTION_ACCESS_DENIED', 'You do not have permission to view this collection');
     }
@@ -71,8 +71,8 @@ export class CatalogService {
 
     // Filter field metadata to only permitted fields (Layer 2)
     const permittedFields = fields.filter(f => {
-      if (denied.includes(f.name)) return false;
-      if (allowed.length > 0 && !allowed.includes(f.name)) return false;
+      if (denied.includes(f.fieldName)) return false;
+      if (allowed.length > 0 && !allowed.includes(f.fieldName)) return false;
       return true;
     }).map(f => {
       const manual = (f as any).manualDescription;
@@ -97,13 +97,13 @@ export class CatalogService {
     // Layer 3: Count only documents satisfying row filters
     const rowQuery = PermissionService.buildMongoQuery(resolved);
     const estimatedRecords = db
-      ? await db.collection(coll.name).countDocuments(rowQuery).catch(() => 0)
+      ? await db.collection(coll.slug).countDocuments(rowQuery).catch(() => 0)
       : 0;
 
     // Fetch up to 3 sample documents with field projection applied
     const sampleProjection = PermissionService.buildMongoProjection(resolved);
     const samples = db
-      ? await db.collection(coll.name).find(rowQuery).project(sampleProjection).limit(3).toArray().catch(() => [])
+      ? await db.collection(coll.slug).find(rowQuery).project(sampleProjection).limit(3).toArray().catch(() => [])
       : [];
 
     return {
@@ -123,13 +123,13 @@ export class CatalogService {
 
     // Layer 1: Collection access
     const userCtx = await PermissionService.getResolutionContext(userId);
-    const resolved = await PermissionService.resolveCollectionPermissions(userId, collection.name, true, userCtx);
+    const resolved = await PermissionService.resolveCollectionPermissions(userId, collection.slug, true, userCtx);
     if (!resolved || !resolved.canRead) {
       throw new AppError(403, 'COLLECTION_ACCESS_DENIED', 'Access denied to parent collection');
     }
 
     // Layer 2: Explicit field-level assertion
-    PermissionService.assertFieldsAccessible([field.name], resolved);
+    PermissionService.assertFieldsAccessible([field.fieldName], resolved);
 
     const manual = (field as any).manualDescription;
     const ai = (field as any).aiDescription;
@@ -169,19 +169,19 @@ export class CatalogService {
 
     for (const coll of collections) {
       // Layer 1: Collection access
-      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.name, false, userCtx);
+      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.slug, false, userCtx);
       if (resolved && resolved.canRead) {
         const { allowed, denied } = resolved.effectiveFields;
         const collFields = allFields.filter(f => String(f.collectionId) === String(coll._id));
 
         // Layer 2: Only expose permitted field names in dictionary
         const permittedFields = collFields.filter(f => {
-          if (denied.includes(f.name)) return false;
-          if (allowed.length > 0 && !allowed.includes(f.name)) return false;
+          if (denied.includes(f.fieldName)) return false;
+          if (allowed.length > 0 && !allowed.includes(f.fieldName)) return false;
           return true;
-        }).map(f => f.name);
+        }).map(f => f.fieldName);
 
-        dictionary.push({ name: coll.name, fields: permittedFields });
+        dictionary.push({ name: coll.name, slug: coll.slug, fields: permittedFields });
       }
     }
 

@@ -54,17 +54,13 @@ export const previewMetricId = async (req: Request, res: Response, next: NextFun
 
     const result = await MetricService.previewFormula(metric.formula, req.user._id);
 
-    // Update preview history (keep last 5)
-    metric.previews.unshift({ result, evaluatedBy: req.user._id, evaluatedAt: new Date() });
-    if (metric.previews.length > 5) metric.previews = metric.previews.slice(0, 5);
-
     // Cache latest computed value
     metric.lastComputedValue = result;
     metric.lastComputedAt = new Date();
     await metric.save();
 
     await ActivityService.logActivity(req.user._id, 'PREVIEWED_METRIC', metric.name);
-    sendSuccess(res, 200, { result, history: metric.previews });
+    sendSuccess(res, 200, { result });
   } catch (err) { next(err); }
 };
 

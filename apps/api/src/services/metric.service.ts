@@ -126,21 +126,42 @@ export class MetricService {
         throw new AppError(403, 'COLLECTION_ACCESS_DENIED', 
           `Cross-collection query requires read access to '${foreignColl}'.`);
       }
-      PermissionService.assertFieldsAccessible([foreignField], foreignResolved);
+      const db = mongoose.connection.db;
+      if (!db) throw new AppError(500, 'DB_ERROR', 'Database connection not available.');
 
+      const qCollObj = await db.collection('collectionmetadatas').findOne({ slug: queryCollection });
+      const fCollObj = await db.collection('collectionmetadatas').findOne({ slug: foreignColl });
+
+      if (!qCollObj || !fCollObj) {
+         throw new AppError(400, 'CROSS_COLLECTION_ERROR', `Lookup failed: Cannot resolve metadata for '${queryCollection}' or '${foreignColl}'.`);
+      }
+
+      // Check relationships using resolved ObjectIDs
       const rel = await Relationship.findOne({
         $or: [
-          { sourceCollection: queryCollection, targetCollection: foreignColl },
-          { targetCollection: queryCollection, sourceCollection: foreignColl }
+          { sourceCollectionId: qCollObj._id, targetCollectionId: fCollObj._id },
+          { targetCollectionId: qCollObj._id, sourceCollectionId: fCollObj._id }
         ]
-      });
+      }).lean();
 
       if (!rel) {
          throw new AppError(400, 'CROSS_COLLECTION_ERROR', `No relationship defined between '${queryCollection}' and '${foreignColl}'.`);
       }
 
-      const localField = rel.sourceCollection === queryCollection ? rel.sourceField : rel.targetField;
-      const remoteField = rel.sourceCollection === queryCollection ? rel.targetField : rel.sourceField;
+      // Resolve field names from ObjectIDs
+      const isQuerySource = String(rel.sourceCollectionId) === String(qCollObj._id);
+      const localFieldId = isQuerySource ? rel.sourceFieldId : rel.targetFieldId;
+      const remoteFieldId = isQuerySource ? rel.targetFieldId : rel.sourceFieldId;
+
+      const localFieldMeta = await db.collection('fieldmetadatas').findOne({ _id: localFieldId });
+      const remoteFieldMeta = await db.collection('fieldmetadatas').findOne({ _id: remoteFieldId });
+
+      if (!localFieldMeta || !remoteFieldMeta) {
+         throw new AppError(500, 'CROSS_COLLECTION_ERROR', 'Relationship references missing field metadata.');
+      }
+
+      const localField = localFieldMeta.fieldName;
+      const remoteField = remoteFieldMeta.fieldName;
 
       const foreignPermMatch = PermissionService.buildMongoQuery(foreignResolved);
       

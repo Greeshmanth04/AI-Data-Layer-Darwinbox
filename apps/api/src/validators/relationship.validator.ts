@@ -2,21 +2,21 @@ import { z } from 'zod';
 
 export const createRelationshipSchema = z.object({
   body: z.object({
-    sourceCollection: z.string().min(1),
-    targetCollection: z.string().min(1),
-    sourceField: z.string().min(1),
-    targetField: z.string().min(1),
+    sourceCollectionId: z.string().min(1),
+    targetCollectionId: z.string().min(1),
+    sourceFieldId: z.string().min(1),
+    targetFieldId: z.string().min(1),
     label: z.string().optional(),
-    relationshipType: z.enum(['1:1', '1:N', 'M:N']).default('1:N')
+    relationshipType: z.enum(['one-to-one', 'one-to-many', 'many-to-one']).default('one-to-many')
   })
 });
 
 export const updateRelationshipSchema = z.object({
   params: z.object({ id: z.string() }),
   body: z.object({
-    relationshipType: z.enum(['1:1', '1:N', 'M:N']).optional(),
-    sourceField: z.string().optional(),
-    targetField: z.string().optional(),
+    relationshipType: z.enum(['one-to-one', 'one-to-many', 'many-to-one']).optional(),
+    sourceFieldId: z.string().optional(),
+    targetFieldId: z.string().optional(),
     label: z.string().optional()
   })
 });

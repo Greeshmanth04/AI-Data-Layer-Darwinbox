@@ -1,6 +1,6 @@
 import { User } from '../models/user.model';
-import { Group, IRowFilter } from '../models/group.model';
-import { UserGroup } from '../models/userGroup.model';
+import { UserGroup, IRowFilter } from '../models/userGroup.model';
+import { CollectionMetadata } from '../models/collectionMetadata.model';
 import { AppError } from '../utils/errors';
 
 export interface ResolvedPermissions {
@@ -17,9 +17,7 @@ export class PermissionService {
   static async getResolutionContext(userId: string) {
     const user = await User.findById(userId);
     if (!user) throw new AppError(401, 'UNAUTHORIZED', 'User not found');
-    const userGroups = await UserGroup.find({ userId });
-    const groupIds = userGroups.map(ug => ug.groupId);
-    const groups = await Group.find({ _id: { $in: groupIds } });
+    const groups = await UserGroup.find({ members: userId });
     return { user, groups };
   }
 
@@ -65,7 +63,7 @@ export class PermissionService {
    */
   static async resolveCollectionPermissions(
     userId: string,
-    collectionName: string,
+    collectionSlug: string,
     throwOnDeny: boolean = true,
     ctx?: { user: any, groups: any[] }
   ): Promise<ResolvedPermissions | null> {
@@ -77,11 +75,13 @@ export class PermissionService {
       return { canRead: true, effectiveFields: { allowed: [], denied: [] }, rowFilters: [] };
     }
 
-    const groups = ctx ? ctx.groups : await (async () => {
-      const userGroups = await UserGroup.find({ userId });
-      const groupIds = userGroups.map(ug => ug.groupId);
-      return Group.find({ _id: { $in: groupIds } });
-    })();
+    const groups = ctx ? ctx.groups : await UserGroup.find({ members: userId });
+
+    const collection = await CollectionMetadata.findOne({ slug: collectionSlug });
+    if (!collection) {
+      if (throwOnDeny) throw new AppError(404, 'NOT_FOUND', `Collection not found: ${collectionSlug}`);
+      return null;
+    }
 
     let canRead = false;
     let allowedAll = false;
@@ -92,7 +92,7 @@ export class PermissionService {
     for (const group of groups) {
       if (!group.permissions) continue;
 
-      const perm = group.permissions.find((p: any) => p.collectionName === collectionName);
+      const perm = group.permissions.find((p: any) => p.collectionId?.toString() === collection._id.toString());
 
       if (perm && perm.canRead) {
         canRead = true;
@@ -121,7 +121,7 @@ export class PermissionService {
 
     if (!canRead) {
       if (throwOnDeny) {
-        throw new AppError(403, 'COLLECTION_ACCESS_DENIED', `Access denied for collection: ${collectionName}`);
+        throw new AppError(403, 'COLLECTION_ACCESS_DENIED', `Access denied for collection: ${collectionSlug}`);
       }
       return null;
     }
@@ -194,3 +194,4 @@ export class PermissionService {
     }
   }
 }
+
