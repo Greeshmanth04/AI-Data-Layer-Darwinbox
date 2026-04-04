@@ -9,7 +9,16 @@ export class ActivityService {
     }
   }
 
-  static async getRecentActivity(limit = 10) {
-    return ActivityLog.find().sort({ createdAt: -1 }).limit(limit).populate('userId', 'email role').lean();
+  static async getRecentActivity(limit = 20, skip = 0) {
+    return ActivityLog.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('userId', 'email name role')
+      .lean();
+  }
+
+  static async getActivityCount() {
+    return ActivityLog.countDocuments();
   }
 }
