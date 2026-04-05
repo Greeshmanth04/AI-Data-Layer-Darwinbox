@@ -67,7 +67,14 @@ export class CatalogService {
 
     const filter: any = { collectionId: collId };
     if (searchQuery) {
-      filter.$text = { $search: searchQuery };
+      const regex = { $regex: searchQuery, $options: 'i' };
+      filter.$or = [
+        { fieldName: regex },
+        { displayName: regex },
+        { aiDescription: regex },
+        { manualDescription: regex },
+        { tags: regex }
+      ];
     }
 
     const fields = await FieldMetadata.find(filter).lean();

@@ -608,23 +608,47 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
 
             {/* Field tables */}
             <div className="pt-2">
-              <div className="flex justify-between items-end mb-4">
-                <h2 className="text-lg font-bold text-slate-800">Standard Core Fields</h2>
-                <span className="text-xs text-slate-400 font-medium">{standardFields.length} protected invariants · AI-described · read-only</span>
-              </div>
-              {renderTable(standardFields, false)}
-
-              {customFields.length > 0 && (
+              {collectionDetail.fields && collectionDetail.fields.length > 0 ? (
                 <>
-                  <div className="flex justify-between items-end mb-4 mt-8">
-                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                      Custom Extension Fields
-                    </h2>
-                    <span className="text-xs text-slate-400 font-medium">{customFields.length} flexible mappings · AI-described + manual override</span>
+                  <div className="flex justify-between items-end mb-4">
+                    <h2 className="text-lg font-bold text-slate-800">Standard Core Fields</h2>
+                    <span className="text-xs text-slate-400 font-medium">{standardFields.length} protected invariants · AI-described · read-only</span>
                   </div>
-                  {renderTable(customFields, true)}
+                  {renderTable(standardFields, false)}
+
+                  {customFields.length > 0 && (
+                    <>
+                      <div className="flex justify-between items-end mb-4 mt-8">
+                        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                          Custom Extension Fields
+                        </h2>
+                        <span className="text-xs text-slate-400 font-medium">{customFields.length} flexible mappings · AI-described + manual override</span>
+                      </div>
+                      {renderTable(customFields, true)}
+                    </>
+                  )}
                 </>
+              ) : searchQuery ? (
+                <div className="bg-white border border-slate-200 rounded-2xl p-12 flex flex-col items-center text-center">
+                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                    <Search className="text-slate-300" size={32} />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">No matching mapping found</h3>
+                  <p className="text-slate-500 text-sm max-w-xs mb-6">
+                    "{searchQuery}" doesn't match any parameter codes, descriptions, or tags in this collection.
+                  </p>
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-widest px-6 py-2.5 rounded-xl shadow-sm transition-all"
+                  >
+                    Clear Filter
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 border-dashed rounded-2xl p-12 text-center">
+                  <p className="text-slate-400 text-sm italic">No fields defined for this collection segment.</p>
+                </div>
               )}
             </div>
           </div>
