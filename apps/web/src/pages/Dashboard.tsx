@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { Database, Layout, ShieldCheck, Calculator, BookOpen, AlertTriangle, Activity, CheckCircle, Clock } from 'lucide-react';
@@ -10,6 +11,14 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
   const { data: stats, isLoading } = useQuery({ queryKey: ['stats'], queryFn: () => apiClient('/dashboard/stats') });
   const { data: healthAlerts, isLoading: healthLoading } = useQuery({ queryKey: ['health'], queryFn: () => apiClient('/dashboard/health') });
   const { data: activities, isLoading: activityLoading } = useQuery({ queryKey: ['activity'], queryFn: () => apiClient('/dashboard/activity') });
+
+  const cards = useMemo(() => [
+    { label: 'Collections', val: stats?.totalCollections || 0, icon: Layout, target: 'catalog' },
+    { label: 'Total Fields', val: stats?.totalFields || 0, icon: Database, target: 'catalog' },
+    { label: 'Doc Coverage', val: `${stats?.documentationCoverage || 0}%`, icon: BookOpen, target: 'catalog' },
+    { label: 'Active Metrics', val: stats?.activeMetrics || 0, icon: Calculator, target: 'metrics' },
+    { label: 'User Groups', val: stats?.userGroups || 0, icon: ShieldCheck, target: 'access' },
+  ], [stats]);
 
   if (isLoading || healthLoading || activityLoading) {
     return <div className="p-10 text-indigo-600 animate-pulse font-medium">Loading Dashboard Elements...</div>;
@@ -24,13 +33,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {[
-          { label: 'Collections', val: stats?.totalCollections || 0, icon: Layout, target: 'catalog' },
-          { label: 'Total Fields', val: stats?.totalFields || 0, icon: Database, target: 'catalog' },
-          { label: 'Doc Coverage', val: `${stats?.documentationCoverage || 0}%`, icon: BookOpen, target: 'catalog' },
-          { label: 'Active Metrics', val: stats?.activeMetrics || 0, icon: Calculator, target: 'metrics' },
-          { label: 'User Groups', val: stats?.userGroups || 0, icon: ShieldCheck, target: 'access' },
-        ].map((card, idx) => {
+        {cards.map((card, idx) => {
            const Icon = card.icon;
            return (
              <div 

@@ -129,8 +129,8 @@ export class MetricService {
       const db = mongoose.connection.db;
       if (!db) throw new AppError(500, 'DB_ERROR', 'Database connection not available.');
 
-      const qCollObj = await db.collection('collectionmetadatas').findOne({ slug: queryCollection });
-      const fCollObj = await db.collection('collectionmetadatas').findOne({ slug: foreignColl });
+      const qCollObj = await db.collection('collections').findOne({ slug: queryCollection });
+      const fCollObj = await db.collection('collections').findOne({ slug: foreignColl });
 
       if (!qCollObj || !fCollObj) {
          throw new AppError(400, 'CROSS_COLLECTION_ERROR', `Lookup failed: Cannot resolve metadata for '${queryCollection}' or '${foreignColl}'.`);
@@ -153,8 +153,8 @@ export class MetricService {
       const localFieldId = isQuerySource ? rel.sourceFieldId : rel.targetFieldId;
       const remoteFieldId = isQuerySource ? rel.targetFieldId : rel.sourceFieldId;
 
-      const localFieldMeta = await db.collection('fieldmetadatas').findOne({ _id: localFieldId });
-      const remoteFieldMeta = await db.collection('fieldmetadatas').findOne({ _id: remoteFieldId });
+      const localFieldMeta = await db.collection('fields').findOne({ _id: localFieldId });
+      const remoteFieldMeta = await db.collection('fields').findOne({ _id: remoteFieldId });
 
       if (!localFieldMeta || !remoteFieldMeta) {
          throw new AppError(500, 'CROSS_COLLECTION_ERROR', 'Relationship references missing field metadata.');

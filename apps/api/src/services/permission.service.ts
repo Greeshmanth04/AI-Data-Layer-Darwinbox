@@ -15,9 +15,9 @@ export interface ResolvedPermissions {
 export class PermissionService {
 
   static async getResolutionContext(userId: string) {
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).lean();
     if (!user) throw new AppError(401, 'UNAUTHORIZED', 'User not found');
-    const groups = await UserGroup.find({ members: userId });
+    const groups = await UserGroup.find({ members: userId }).lean();
     return { user, groups };
   }
 
@@ -65,9 +65,10 @@ export class PermissionService {
     userId: string,
     collectionSlug: string,
     throwOnDeny: boolean = true,
-    ctx?: { user: any, groups: any[] }
+    ctx?: { user: any, groups: any[] },
+    collectionMetadata?: any
   ): Promise<ResolvedPermissions | null> {
-    const user = ctx ? ctx.user : await User.findById(userId);
+    const user = ctx ? ctx.user : await User.findById(userId).lean();
     if (!user) throw new AppError(401, 'UNAUTHORIZED', 'User not found');
 
     // platform_admin bypasses all permission checks — full unrestricted access
@@ -75,9 +76,9 @@ export class PermissionService {
       return { canRead: true, effectiveFields: { allowed: [], denied: [] }, rowFilters: [] };
     }
 
-    const groups = ctx ? ctx.groups : await UserGroup.find({ members: userId });
+    const groups = ctx ? ctx.groups : await UserGroup.find({ members: userId }).lean();
 
-    const collection = await CollectionMetadata.findOne({ slug: collectionSlug });
+    const collection = collectionMetadata || await CollectionMetadata.findOne({ slug: collectionSlug }).lean();
     if (!collection) {
       if (throwOnDeny) throw new AppError(404, 'NOT_FOUND', `Collection not found: ${collectionSlug}`);
       return null;

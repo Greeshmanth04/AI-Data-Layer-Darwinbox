@@ -7,7 +7,14 @@ import bcrypt from 'bcryptjs';
 // Groups
 export const getGroups = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userGroups = await UserGroup.find().lean();
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 500);
+    const page = Math.max(parseInt(req.query.page as string) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const userGroups = await UserGroup.find()
+      .skip(skip)
+      .limit(limit)
+      .lean();
     
     const enrichedGroups = userGroups.map(g => {
       return {
@@ -37,6 +44,13 @@ export const updateGroup = async (req: Request, res: Response, next: NextFunctio
 export const deleteGroup = async (req: Request, res: Response, next: NextFunction) => {
   try {
     await UserGroup.findByIdAndDelete(req.params.id);
+    
+    // Synergize and yank the group from all respective members immediately
+    await User.updateMany(
+      { groupIds: req.params.id },
+      { $pull: { groupIds: req.params.id } }
+    );
+    
     sendSuccess(res, 200, null, 'Deleted successfully');
   } catch (error) { next(error); }
 };
@@ -45,6 +59,20 @@ export const updateGroupMembers = async (req: Request, res: Response, next: Next
   try {
     const groupId = req.params.id;
     const { userIds } = req.body;
+
+    // Pull this group from all users who currently have it
+    await User.updateMany(
+      { groupIds: groupId },
+      { $pull: { groupIds: groupId } }
+    );
+    // Push this group to the newly assigned users
+    if (userIds && userIds.length > 0) {
+      await User.updateMany(
+        { _id: { $in: userIds } },
+        { $addToSet: { groupIds: groupId } }
+      );
+    }
+    
     await UserGroup.findByIdAndUpdate(groupId, { members: userIds });
     sendSuccess(res, 200, null, 'Members synced successfully');
   } catch (error) { next(error); }
@@ -88,7 +116,15 @@ export const deleteCollectionPermission = async (req: Request, res: Response, ne
 // Users
 export const getUsers = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const users = await User.find().select('-passwordHash').lean();
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 500);
+    const page = Math.max(parseInt(req.query.page as string) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const users = await User.find()
+      .select('-passwordHash')
+      .skip(skip)
+      .limit(limit)
+      .lean();
     
     const enrichedUsers = users.map(u => ({
       ...u,

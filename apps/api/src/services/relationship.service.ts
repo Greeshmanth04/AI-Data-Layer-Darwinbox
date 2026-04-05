@@ -4,6 +4,8 @@ import { FieldMetadata } from '../models/fieldMetadata.model';
 import { CatalogService } from './catalog.service';
 import { PermissionService } from './permission.service';
 import { ActivityService } from './activity.service';
+import { SyncService } from './sync.service';
+import { AppError } from '../utils/errors';
 
 export class RelationshipService {
 
@@ -110,5 +112,96 @@ export class RelationshipService {
 
     await ActivityService.logActivity(userId, 'AUTODETECT_GRAPH', `Found ${detectedEdges.length} edges`);
     return detectedEdges;
+  }
+
+  static async createRelationship(userId: string, data: any) {
+    const { sourceCollectionId, targetCollectionId, sourceFieldId, targetFieldId } = data;
+
+    const sColl = await CollectionMetadata.findById(sourceCollectionId).lean();
+    const tColl = await CollectionMetadata.findById(targetCollectionId).lean();
+    if (!sColl || !tColl) {
+      throw new AppError(400, 'VALIDATION_FAILED', 'Source or Target collection not found');
+    }
+
+    const sField = await FieldMetadata.findById(sourceFieldId).lean();
+    const tField = await FieldMetadata.findById(targetFieldId).lean();
+    if (!sField || !tField) {
+      throw new AppError(400, 'VALIDATION_FAILED', 'Source or Target field not found');
+    }
+
+    await SyncService.validateForeignKeyTarget(String(tColl._id), String(tField._id));
+    await SyncService.validateForeignKeyIntegrity(sColl._id, sField.fieldName, tColl._id, tField.fieldName);
+
+    const edge = await Relationship.create({ ...data, isAutoDetected: false });
+
+    try {
+      await SyncService.syncRelationshipToField({
+        sourceCollectionId: String(edge.sourceCollectionId),
+        targetCollectionId: String(edge.targetCollectionId),
+        sourceFieldId: String(edge.sourceFieldId),
+        targetFieldId: String(edge.targetFieldId),
+        label: edge.label,
+        relationshipType: edge.relationshipType,
+      });
+    } catch (syncErr) {
+      console.error('[RelationshipService] Sync to catalog failed on create:', syncErr);
+    }
+
+    await ActivityService.logActivity(userId, 'CREATED_EDGE', `${edge.sourceCollectionId} to ${edge.targetCollectionId}`);
+    return edge;
+  }
+
+  static async updateRelationship(userId: string, edgeId: string, data: any) {
+    const { sourceCollectionId, targetCollectionId, sourceFieldId, targetFieldId } = data;
+
+    const sColl = sourceCollectionId ? await CollectionMetadata.findById(sourceCollectionId).lean() : null;
+    const tColl = targetCollectionId ? await CollectionMetadata.findById(targetCollectionId).lean() : null;
+
+    if (sColl && tColl && sourceFieldId && targetFieldId) {
+      const sField = await FieldMetadata.findById(sourceFieldId).lean();
+      const tField = await FieldMetadata.findById(targetFieldId).lean();
+
+      if (sField && tField) {
+        await SyncService.validateForeignKeyTarget(String(tColl._id), String(tField._id));
+        await SyncService.validateForeignKeyIntegrity(sColl._id, sField.fieldName, tColl._id, tField.fieldName);
+      }
+    }
+
+    const edge = await Relationship.findByIdAndUpdate(edgeId, data, { new: true }).lean();
+    if (!edge) throw new AppError(404, 'NOT_FOUND', 'Relationship not found');
+
+    try {
+      await SyncService.syncRelationshipToField({
+        sourceCollectionId: String(edge.sourceCollectionId),
+        targetCollectionId: String(edge.targetCollectionId),
+        sourceFieldId: String(edge.sourceFieldId),
+        targetFieldId: String(edge.targetFieldId),
+        label: edge.label,
+        relationshipType: edge.relationshipType,
+      });
+    } catch (syncErr) {
+      console.error('[RelationshipService] Sync to catalog failed on update:', syncErr);
+    }
+
+    await ActivityService.logActivity(userId, 'UPDATED_EDGE', edge._id.toString());
+    return edge;
+  }
+
+  static async deleteRelationship(userId: string, edgeId: string) {
+    const edge = await Relationship.findById(edgeId).lean();
+    if (!edge) throw new AppError(404, 'NOT_FOUND', 'Relationship not found');
+
+    await Relationship.findByIdAndDelete(edgeId);
+
+    try {
+      await SyncService.syncRelationshipDeletion({
+        sourceCollectionId: String(edge.sourceCollectionId),
+        sourceFieldId: String(edge.sourceFieldId),
+      });
+    } catch (syncErr) {
+      console.error('[RelationshipService] Sync to catalog failed on delete:', syncErr);
+    }
+
+    await ActivityService.logActivity(userId, 'DELETED_EDGE', edgeId);
   }
 }

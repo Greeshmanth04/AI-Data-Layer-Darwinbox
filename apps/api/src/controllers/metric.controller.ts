@@ -9,7 +9,17 @@ import { LLMService } from '../services/llm.service';
 
 export const getMetrics = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const metrics = await MetricDefinition.find().sort({ category: 1, name: 1 }).lean();
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 500);
+    const page = Math.max(parseInt(req.query.page as string) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const metrics = await MetricDefinition.find()
+      .sort({ category: 1, name: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+      
+    // Metrics frontend explicitly relies on bare array right now, so we must return just the array to avoid breaking the UI for the moment until UI adjusts to pagination block
     sendSuccess(res, 200, metrics);
   } catch (err) { next(err); }
 };

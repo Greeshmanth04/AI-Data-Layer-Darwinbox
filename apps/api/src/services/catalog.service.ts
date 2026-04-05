@@ -2,6 +2,8 @@ import { CollectionMetadata } from '../models/collectionMetadata.model';
 import { FieldMetadata } from '../models/fieldMetadata.model';
 import { PermissionService } from './permission.service';
 import { LLMService } from './llm.service';
+import { SyncService } from './sync.service';
+import { ActivityService } from './activity.service';
 import { AppError } from '../utils/errors';
 
 export class CatalogService {
@@ -14,7 +16,7 @@ export class CatalogService {
 
     for (const coll of collections) {
       // Layer 1: Collection access
-      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.slug, false, userCtx);
+      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.slug, false, userCtx, coll);
       if (resolved && resolved.canRead) {
         const { allowed, denied } = resolved.effectiveFields;
         const collFields = allFields.filter(f => String(f.collectionId) === String(coll._id));
@@ -169,7 +171,7 @@ export class CatalogService {
 
     for (const coll of collections) {
       // Layer 1: Collection access
-      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.slug, false, userCtx);
+      const resolved = await PermissionService.resolveCollectionPermissions(userId, coll.slug, false, userCtx, coll);
       if (resolved && resolved.canRead) {
         const { allowed, denied } = resolved.effectiveFields;
         const collFields = allFields.filter(f => String(f.collectionId) === String(coll._id));
@@ -181,11 +183,184 @@ export class CatalogService {
           return true;
         }).map(f => f.fieldName);
 
-        dictionary.push({ name: coll.name, slug: coll.slug, fields: permittedFields });
+        dictionary.push({ _id: coll._id, name: coll.name, slug: coll.slug, fields: permittedFields });
+      }
+    }
+    return dictionary;
+  }
+
+  static async deleteCollection(userId: string, collId: string) {
+    const coll = await CollectionMetadata.findById(collId);
+    if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
+
+    await SyncService.onCollectionDeleted(coll.slug);
+    await FieldMetadata.deleteMany({ collectionId: coll._id });
+    await coll.deleteOne();
+    await ActivityService.logActivity(userId, 'DELETED_COLLECTION', coll.slug);
+  }
+
+  static async createField(userId: string, data: any) {
+    const coll = await CollectionMetadata.findById(data.collectionId);
+    if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
+
+    SyncService.validateNotBothPkAndFk(data.isPrimaryKey, data.isForeignKey);
+
+    if (data.isPrimaryKey) {
+      await SyncService.validatePrimaryKeyData(data.collectionId, data.fieldName);
+    }
+
+    if (data.isForeignKey) {
+      if (!data.targetCollectionId || !data.targetFieldId) {
+        throw new AppError(400, 'FK_VALIDATION_FAILED', 'Foreign Key requires a target collection and target field');
+      }
+      await SyncService.validateForeignKeyTarget(data.targetCollectionId, data.targetFieldId);
+
+      const targetField = await FieldMetadata.findById(data.targetFieldId).lean();
+      if (targetField) {
+        await SyncService.validateForeignKeyIntegrity(
+          data.collectionId, data.fieldName, data.targetCollectionId, targetField.fieldName
+        );
       }
     }
 
-    return dictionary;
+    const fieldData = {
+      ...data,
+      displayName: data.displayName || data.fieldName
+        .replace(/_/g, ' ')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/\b\w/g, (c: string) => c.toUpperCase()),
+    };
+
+    const field = await FieldMetadata.create(fieldData);
+
+    if (field.isPrimaryKey) {
+      await SyncService.enforcePrimaryKeyUniqueness(field.collectionId, field._id);
+    }
+
+    if (field.isForeignKey && field.targetCollectionId && field.targetFieldId) {
+      await SyncService.syncFieldToRelationship(field);
+    }
+
+    try {
+      const db = (FieldMetadata.db as any).db;
+      if (db) {
+        await db.collection(coll.slug).updateMany(
+          { [field.fieldName]: { $exists: false } },
+          { $set: { [field.fieldName]: null } },
+        );
+      }
+    } catch (err) {
+      console.error(`[CatalogService] Failed to initialize field ${field.fieldName} with null:`, err);
+    }
+
+    try {
+      const { description } = await LLMService.generateFieldDescription(
+        field.fieldName,
+        coll.name,
+        field.dataType,
+        coll.module,
+      );
+      field.aiDescription = description;
+      field.descriptionSource = 'ai';
+      await field.save();
+    } catch (err) {
+      console.error(`[CatalogService] Initial AI generation failed for ${field.fieldName}:`, err);
+    }
+
+    await ActivityService.logActivity(userId, 'CREATED_FIELD', field.fieldName);
+    
+    return {
+      ...field.toObject(),
+      description: field.manualDescription || field.aiDescription || null,
+      descriptionSource: field.descriptionSource,
+    };
+  }
+
+  static async updateField(userId: string, fieldId: string, data: any, userRole: string) {
+    const field = await FieldMetadata.findById(fieldId);
+    if (!field) throw new AppError(404, 'NOT_FOUND', 'Field not found');
+
+    const newIsPk = data.isPrimaryKey !== undefined ? data.isPrimaryKey : field.isPrimaryKey;
+    const newIsFk = data.isForeignKey !== undefined ? data.isForeignKey : field.isForeignKey;
+
+    SyncService.validateNotBothPkAndFk(newIsPk, newIsFk);
+
+    if (newIsPk && !field.isPrimaryKey) {
+      await SyncService.validatePrimaryKeyData(field.collectionId, field.fieldName);
+    }
+
+    if (newIsFk) {
+      const effectiveTargetCollId = data.targetCollectionId || (field.targetCollectionId ? String(field.targetCollectionId) : undefined);
+      const effectiveTargetFieldId = data.targetFieldId || (field.targetFieldId ? String(field.targetFieldId) : undefined);
+
+      if (effectiveTargetCollId && effectiveTargetFieldId) {
+        await SyncService.validateForeignKeyTarget(effectiveTargetCollId, effectiveTargetFieldId);
+        const targetField = await FieldMetadata.findById(effectiveTargetFieldId).lean();
+        if (targetField) {
+          await SyncService.validateForeignKeyIntegrity(
+            field.collectionId, field.fieldName, effectiveTargetCollId, targetField.fieldName
+          );
+        }
+      }
+    }
+
+    const hasDescriptionUpdate = data.description !== undefined || data.manualDescription !== undefined;
+
+    if (hasDescriptionUpdate && !field.isCustom && userRole !== 'platform_admin') {
+      throw new AppError(403, 'FORBIDDEN', 'Only Custom Extension Fields can have descriptions manually overridden');
+    }
+
+    if (data.description !== undefined) {
+      data.manualDescription = data.description;
+      delete data.description;
+    }
+
+    if (data.manualDescription !== undefined) {
+      const isClearing = !data.manualDescription || data.manualDescription.trim() === '';
+      data.descriptionSource = !isClearing ? 'manual' : (field.aiDescription ? 'ai' : 'none');
+      if (isClearing) data.manualDescription = null;
+    }
+
+    const wasFk = field.isForeignKey;
+    Object.assign(field, data);
+
+    if (field.isPrimaryKey && data.isPrimaryKey === true) {
+      await SyncService.enforcePrimaryKeyUniqueness(field.collectionId, field._id);
+    }
+
+    if (data.isForeignKey === false) {
+      field.targetCollectionId = undefined;
+      field.targetFieldId = undefined;
+      field.relationshipLabel = undefined;
+      field.relationshipType = undefined;
+    }
+
+    await field.save();
+
+    const isFkNow = field.isForeignKey;
+    const hasTargetNow = !!field.targetCollectionId && !!field.targetFieldId;
+
+    if (isFkNow && hasTargetNow) {
+      await SyncService.syncFieldToRelationship(field);
+    } else if (wasFk && !isFkNow) {
+      await SyncService.removeRelationshipForField(field);
+    }
+
+    await ActivityService.logActivity(userId, 'UPDATED_FIELD', field.fieldName);
+    
+    return {
+      ...field.toObject(),
+      description: field.manualDescription || field.aiDescription || null,
+      descriptionSource: field.descriptionSource,
+    };
+  }
+
+  static async deleteField(userId: string, fieldId: string) {
+    const field = await FieldMetadata.findById(fieldId);
+    if (!field) throw new AppError(404, 'NOT_FOUND', 'Field not found');
+
+    await SyncService.onFieldDeleted(field);
+    await field.deleteOne();
+    await ActivityService.logActivity(userId, 'DELETED_FIELD', field.fieldName);
   }
 }
-

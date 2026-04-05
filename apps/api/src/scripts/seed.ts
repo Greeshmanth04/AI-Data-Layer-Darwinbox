@@ -28,7 +28,25 @@ const upsert = async (db: mongoose.mongo.Db, collName: string, filter: any, doc:
 // DEFINITIONS
 // --------------------------------------------------
 
-const metadata = [
+interface SeedField {
+  fieldName: string;
+  dataType: string;
+  isPrimaryKey?: boolean;
+  isForeignKey?: boolean;
+  isCustom?: boolean;
+  tags?: string[];
+  exampleValues?: any[];
+}
+
+interface SeedCollection {
+  slug: string;
+  name: string;
+  module: string;
+  description: string;
+  fields: SeedField[];
+}
+
+const metadata: SeedCollection[] = [
   {
     slug: 'employees', name: 'Employees', module: 'Core', description: 'Central HR employee directory', fields: [
       { fieldName: 'employee_id', dataType: 'string', isPrimaryKey: true, isCustom: false, tags: ['identifier'] },
@@ -181,8 +199,8 @@ async function seed() {
         aiDescription: `The ${f.dataType} value for ${humanName} within the ${entity} record mapping.`,
         manualDescription: f.isCustom ? `Custom verified description for ${humanName}.` : null,
         descriptionSource: f.isCustom ? 'manual' : 'ai',
-        exampleValues: (f as any).exampleValues || [],
-        tags: (f as any).tags || ['general']
+        exampleValues: f.exampleValues || [],
+        tags: f.tags || ['general']
       });
     }
   }
@@ -319,6 +337,7 @@ async function seed() {
       _id: genId(`METRIC_${m.name.replace(/\s/g, '_')}`),
       name: m.name,
       formula: m.formula,
+      baseCollection: m.cols[0],
       description: `Description for ${m.name}`,
       category: m.category,
       collectionIds: collObjIds,
@@ -405,7 +424,16 @@ async function seed() {
   });
 
   // Create PRD-mandated Users
-  const userSeeds = [
+  interface SeedUser {
+    _id: mongoose.Types.ObjectId;
+    email: string;
+    name: string;
+    role: string;
+    status: string;
+    groups?: string[];
+  }
+
+  const userSeeds: SeedUser[] = [
     { _id: genId('U_ADMIN'), email: 'admin@darwinbox.io', name: 'System Admin', role: 'platform_admin', status: 'active' },
     { _id: genId('U_HR'), email: 'hr@darwinbox.io', name: 'Lead Steward', role: 'data_steward', status: 'active', groups: ['G_HR'] },
     { _id: genId('U_PAYROLL'), email: 'analyst@darwinbox.io', name: 'Payroll Lead', role: 'analyst', status: 'active', groups: ['G_PAY'] },
@@ -413,7 +441,7 @@ async function seed() {
   ];
 
   for (const u of userSeeds) {
-    const groupIdsForUser = ((u as any).groups || []).map((g: string) => genId(g));
+    const groupIdsForUser = (u.groups || []).map((g: string) => genId(g));
     
     await upsert(db, 'users', { email: u.email }, {
       _id: u._id,
@@ -426,8 +454,8 @@ async function seed() {
       createdAt: new Date()
     });
 
-    if ((u as any).groups) {
-      for (const gKey of (u as any).groups) {
+    if (u.groups) {
+      for (const gKey of u.groups) {
         await db.collection('usergroups').updateOne(
           { _id: genId(gKey) },
           { $addToSet: { members: u._id } }

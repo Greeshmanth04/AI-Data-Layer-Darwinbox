@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IMetricDefinition extends Document {
   name: string;
   formula: string;
+  baseCollection: string;
   description?: string;
   category?: string;
   collectionIds: mongoose.Types.ObjectId[];
@@ -14,6 +15,7 @@ export interface IMetricDefinition extends Document {
 const MetricDefinitionSchema = new Schema<IMetricDefinition>({
   name: { type: String, required: true, unique: true },
   formula: { type: String, required: true },
+  baseCollection: { type: String, required: true },
   description: { type: String },
   category: { type: String },
   collectionIds: { type: [Schema.Types.ObjectId], ref: 'CollectionMetadata', default: [] },
