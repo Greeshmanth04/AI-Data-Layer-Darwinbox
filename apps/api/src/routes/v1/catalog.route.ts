@@ -25,26 +25,26 @@ router.get('/collections', getCollections);
 // Layer 3: row-count scoped to row query
 router.get('/collections/:id', getCollectionById);
 
-router.post('/collections', requireRole(['platform_admin']), validateRequest(schemas.createCollectionSchema), createCollection);
-router.put('/collections/:id', requireRole(['platform_admin']), validateRequest(schemas.updateCollectionSchema), updateCollection);
-router.delete('/collections/:id', requireRole(['platform_admin']), deleteCollection);
+router.post('/collections', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.createCollectionSchema), createCollection);
+router.put('/collections/:id', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.updateCollectionSchema), updateCollection);
+router.delete('/collections/:id', requireRole(['platform_admin', 'data_steward']), deleteCollection);
 
 // ── Field routes ─────────────────────────────────────────────────────────────
 
 // Bulk backfill — must come BEFORE /:id routes to avoid route collision
 router.post(
   '/fields/bulk-generate-descriptions',
-  requireRole(['platform_admin']),
+  requireRole(['platform_admin', 'data_steward']),
   bulkGenerateDescriptions,
 );
 
-router.post('/fields', requireRole(['platform_admin']), validateRequest(schemas.createFieldSchema), createField);
+router.post('/fields', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.createFieldSchema), createField);
 
 // Single field read — Layer 1+2 enforced inside getPermittedFieldById
 router.get('/fields/:id', getFieldById);
 
-router.put('/fields/:id', requireRole(['platform_admin']), validateRequest(schemas.updateFieldSchema), updateField);
-router.delete('/fields/:id', requireRole(['platform_admin']), deleteField);
+router.put('/fields/:id', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.updateFieldSchema), updateField);
+router.delete('/fields/:id', requireRole(['platform_admin', 'data_steward']), deleteField);
 
 // Re-generate description on demand — available to any authenticated user who can view the field
 router.post('/fields/:id/generate-description', generateFieldDescription);

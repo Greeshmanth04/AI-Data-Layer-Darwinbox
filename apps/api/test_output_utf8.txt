@@ -1,0 +1,96 @@
+﻿node.exe : FAIL tests/rela
+tionship.sync.test.ts
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (F  
+  AIL tests/relationshi   
+ p.sync.test.ts:String    
+) [], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+  SyncService 
+Bidirectional Sync
+    
+syncRelationshipToField 
+(Mapper -> Catalog)
+      ├ù should update 
+source field with FK 
+metadata (3 ms)
+    
+syncFieldToRelationship 
+(Catalog -> Mapper)
+      ΓêÜ should upsert 
+relationship when field 
+has FK config (3 ms)
+      ΓêÜ should remove 
+relationship when FK is 
+disabled (1 ms)
+
+  ΓùÅ SyncService 
+Bidirectional Sync ΓÇ║ 
+syncRelationshipToField 
+(Mapper -> Catalog) ΓÇ║ 
+should update source 
+field with FK metadata
+
+    TypeError: fieldMetada
+ta_model_1.FieldMetadata.f
+indById(...).lean is not 
+a function
+
+    [0m [90m  98 |[39m 
+    [36mif[39m 
+([33m![39mtargetColl) [
+36mreturn[39m[33m;[39m
+     [90m  99 |[39m
+    
+[31m[1m>[22m[39m[90m 
+100 |[39m     
+[36mconst[39m 
+targetField [33m=[39m 
+[36mawait[39m [33mField
+Metadata[39m[33m.[39mfi
+ndById(rel[33m.[39mtarge
+tFieldId)[33m.[39mlean()
+[33m;[39m
+     [90m     |[39m     
+                          
+                          
+                
+[31m[1m^[22m[39m
+     [90m 101 |[39m
+     [90m 102 |[39m     
+[90m// Update the source 
+field with FK info[39m
+     [90m 103 |[39m     
+sourceField[33m.[39misFo
+reignKey [33m=[39m [36m
+true[39m[33m;[39m[0m
+
+      at SyncService.syncR
+elationshipToField (src/se
+rvices/sync.service.ts:100
+:73)
+      at 
+Object.<anonymous> (tests/
+relationship.sync.test.ts:
+24:13)
+
+Test Suites: 1 failed, 1 
+total
+Tests:       1 failed, 2 
+passed, 3 total
+Snapshots:   0 total
+Time:        3.283 s
+Ran all test suites 
+matching /tests\\relations
+hip.sync.test.ts/i.

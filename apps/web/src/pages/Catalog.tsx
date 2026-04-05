@@ -38,7 +38,7 @@ function DescriptionSourceBadge({ source }: { source?: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'platform_admin';
+  const isAdmin = user?.role === 'platform_admin' || user?.role === 'data_steward';
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
