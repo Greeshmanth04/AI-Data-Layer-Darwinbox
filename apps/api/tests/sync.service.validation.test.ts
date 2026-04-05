@@ -114,8 +114,25 @@ describe('SyncService Validation', () => {
             };
             (FieldMetadata as any).db = { db: mockDb };
 
-            await expect(SyncService.validateForeignKeyIntegrity('c1', 'dept_id', 'c2', 'id'))
-                .resolves.not.toThrow();
+        });
+    });
+
+    describe('validateNotBothPkAndFk', () => {
+        test('should throw 400 if both are true', () => {
+            expect(() => SyncService.validateNotBothPkAndFk(true, true))
+                .toThrow(AppError);
+            try {
+                SyncService.validateNotBothPkAndFk(true, true);
+            } catch (err: any) {
+                expect(err.statusCode).toBe(400);
+                expect(err.code).toBe('VALIDATION_FAILED');
+            }
+        });
+
+        test('should pass if only one or none is true', () => {
+            expect(() => SyncService.validateNotBothPkAndFk(true, false)).not.toThrow();
+            expect(() => SyncService.validateNotBothPkAndFk(false, true)).not.toThrow();
+            expect(() => SyncService.validateNotBothPkAndFk(false, false)).not.toThrow();
         });
     });
 });

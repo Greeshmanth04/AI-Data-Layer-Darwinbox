@@ -4,7 +4,7 @@ import { apiClient } from '../api/client';
 import {
   Search, Edit3, X, Key, Hash, ChevronDown, ArrowLeft, Sparkles,
   Tag as TagIcon, Database, Activity, Plus, Trash2, RefreshCw,
-  Zap, ShieldCheck, AlertCircle, RotateCcw,
+  Zap, ShieldCheck, AlertCircle, RotateCcw, AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -53,7 +53,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
   const [isEditingColl, setIsEditingColl] = useState(false);
   const [collForm, setCollForm] = useState({ slug: '', name: '', module: '', description: '' });
   const [showFieldModal, setShowFieldModal] = useState(false);
-  const [fieldForm, setFieldForm] = useState({ fieldName: '', dataType: 'string', isCustom: true, isPrimaryKey: false, isForeignKey: false, targetCollectionId: '', targetFieldId: '', relationshipType: 'one-to-many', relationshipLabel: '', exampleValues: [] as string[] });
+  const [fieldForm, setFieldForm] = useState({ fieldName: '', dataType: 'string', isCustom: true, isPrimaryKey: false, isForeignKey: false, targetCollectionId: '', targetFieldId: '', relationshipType: 'one-to-many', relationshipLabel: '', exampleValues: [] as string[], manualDescription: '' });
   const [bulkResult, setBulkResult] = useState<{ total: number; updated: number; failed: number } | null>(null);
   const [knownTags, setKnownTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -157,8 +157,13 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
   });
 
   const createFieldMutation = useMutation({
-    mutationFn: (data: any) =>
-      apiClient('/catalog/fields', { method: 'POST', body: JSON.stringify(data) }),
+    mutationFn: (data: any) => {
+      // Clean up payload: Remove empty strings for relationship IDs to prevent CastErrors
+      const payload = { ...data };
+      if (payload.targetCollectionId === '') delete payload.targetCollectionId;
+      if (payload.targetFieldId === '') delete payload.targetFieldId;
+      return apiClient('/catalog/fields', { method: 'POST', body: JSON.stringify(payload) });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
@@ -1109,13 +1114,13 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
             <p className="text-xs text-slate-500 mb-1">
               Target: <span className="font-bold">{collectionDetail.name}</span>
             </p>
-            <div className="flex items-center gap-1.5 mb-4">
-              <Sparkles size={11} className="text-indigo-400" />
-              <p className="text-[11px] text-indigo-500 font-medium">
-                An AI description will be generated automatically after creation.
-              </p>
-            </div>
+
             <div className="space-y-3">
+              {error && (
+                <div className="bg-red-50 border border-red-100 text-red-600 text-[11px] p-2 rounded mb-2 font-medium flex items-center gap-2">
+                  <AlertTriangle size={12} /> {error}
+                </div>
+              )}
               <input
                 placeholder="Field Code (e.g. internal_id)"
                 value={fieldForm.fieldName}
@@ -1133,6 +1138,12 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                 <option value="date">Date</option>
                 <option value="reference">Reference Component</option>
               </select>
+              <textarea
+                placeholder="Description (Optional)"
+                value={fieldForm.manualDescription}
+                onChange={e => setFieldForm({ ...fieldForm, manualDescription: e.target.value })}
+                className="w-full border border-slate-200 p-2 rounded text-sm h-20 resize-none"
+              />
 
               <div className="pt-2 border-t border-slate-100 flex gap-6">
                 <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
@@ -1182,13 +1193,13 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
               </button>
               <button
                 onClick={() => createFieldMutation.mutate({ ...fieldForm, collectionId: collectionDetail._id })}
-                disabled={createFieldMutation.isPending}
+                disabled={createFieldMutation.isPending || !fieldForm.fieldName.trim()}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm border border-indigo-700 flex items-center gap-2 disabled:opacity-60"
               >
                 {createFieldMutation.isPending ? (
-                  <><RefreshCw size={14} className="animate-spin" /> Generating AI...</>
+                  <><RefreshCw size={14} className="animate-spin" /> Saving...</>
                 ) : (
-                  <>Deploy &amp; Generate AI</>
+                  <>Deploy Parameter</>
                 )}
               </button>
             </div>

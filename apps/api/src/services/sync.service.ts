@@ -344,7 +344,7 @@ export class SyncService {
    */
   static validateNotBothPkAndFk(isPrimaryKey?: boolean, isForeignKey?: boolean): void {
     if (isPrimaryKey && isForeignKey) {
-      throw new Error('A field cannot be both a Primary Key and a Foreign Key');
+      throw new AppError(400, 'VALIDATION_FAILED', 'A field cannot be both a Primary Key and a Foreign Key');
     }
   }
 }

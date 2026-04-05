@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { CollectionMetadata } from '../models/collectionMetadata.model';
 import { FieldMetadata } from '../models/fieldMetadata.model';
 import { PermissionService } from './permission.service';
@@ -203,6 +204,10 @@ export class CatalogService {
     const coll = await CollectionMetadata.findById(data.collectionId);
     if (!coll) throw new AppError(404, 'NOT_FOUND', 'Collection not found');
 
+    // Normalize: convert "" from UI to undefined for ObjectId fields to prevent CastError
+    if (data.targetCollectionId === '') data.targetCollectionId = undefined;
+    if (data.targetFieldId === '') data.targetFieldId = undefined;
+
     SyncService.validateNotBothPkAndFk(data.isPrimaryKey, data.isForeignKey);
 
     if (data.isPrimaryKey) {
@@ -229,6 +234,7 @@ export class CatalogService {
         .replace(/_/g, ' ')
         .replace(/([a-z])([A-Z])/g, '$1 $2')
         .replace(/\b\w/g, (c: string) => c.toUpperCase()),
+      descriptionSource: data.manualDescription && data.manualDescription.trim() !== '' ? 'manual' : 'none',
     };
 
     const field = await FieldMetadata.create(fieldData);
@@ -242,7 +248,7 @@ export class CatalogService {
     }
 
     try {
-      const db = (FieldMetadata.db as any).db;
+      const db = mongoose.connection.db;
       if (db) {
         await db.collection(coll.slug).updateMany(
           { [field.fieldName]: { $exists: false } },
@@ -267,6 +273,10 @@ export class CatalogService {
   static async updateField(userId: string, fieldId: string, data: any, userRole: string) {
     const field = await FieldMetadata.findById(fieldId);
     if (!field) throw new AppError(404, 'NOT_FOUND', 'Field not found');
+
+    // Normalize: convert "" from UI to undefined for ObjectId fields to prevent CastError
+    if (data.targetCollectionId === '') data.targetCollectionId = undefined;
+    if (data.targetFieldId === '') data.targetFieldId = undefined;
 
     const newIsPk = data.isPrimaryKey !== undefined ? data.isPrimaryKey : field.isPrimaryKey;
     const newIsFk = data.isForeignKey !== undefined ? data.isForeignKey : field.isForeignKey;
@@ -294,7 +304,7 @@ export class CatalogService {
 
     const hasDescriptionUpdate = data.description !== undefined || data.manualDescription !== undefined;
 
-    if (hasDescriptionUpdate && !field.isCustom && userRole !== 'platform_admin') {
+    if (hasDescriptionUpdate && !field.isCustom) {
       throw new AppError(403, 'FORBIDDEN', 'Only Custom Extension Fields can have descriptions manually overridden');
     }
 
