@@ -22,6 +22,7 @@ export class DashboardService {
     let totalFields = 0;
     let documentedFields = 0;
     const coverageBreakdown: any[] = [];
+    const readableCollIds: string[] = [];
 
     for (const coll of collections) {
       const resolved = await PermissionService.resolveCollectionPermissions(
@@ -29,6 +30,7 @@ export class DashboardService {
       );
       if (!resolved || !resolved.canRead) continue;
 
+      readableCollIds.push(coll._id.toString());
       totalCollections++;
 
       const { allowed, denied } = resolved.effectiveFields;
@@ -70,7 +72,12 @@ export class DashboardService {
       });
     }
 
-    const activeMetricsCount = await MetricDefinition.countDocuments();
+    const allMetrics = await MetricDefinition.find().lean();
+    const activeMetricsCount = allMetrics.filter(m =>
+      !m.collectionIds?.length ||
+      m.collectionIds.some(id => readableCollIds.includes(id.toString()))
+    ).length;
+
     const userGroupsCount = await UserGroup.countDocuments();
 
     return {
@@ -96,12 +103,15 @@ export class DashboardService {
 
     const undocumentedFields: string[] = [];
     const unassignedCollections: string[] = [];
+    const readableCollIds: string[] = [];
 
     for (const coll of collections) {
       const resolved = await PermissionService.resolveCollectionPermissions(
         userId, coll.slug, false, userCtx
       );
       if (!resolved || !resolved.canRead) continue;
+
+      readableCollIds.push(coll._id.toString());
 
       const { allowed, denied } = resolved.effectiveFields;
       const collFields = allFields.filter(f => String(f.collectionId) === String(coll._id));
@@ -132,13 +142,6 @@ export class DashboardService {
     }
 
     // Metrics with no preview — filtered to only metrics referencing accessible collections
-    const readableCollIds = collections
-      .filter(c => {
-        // We already resolved above; just check if any of the user's groups grant access
-        return true; // simplified — we filter below
-      })
-      .map(c => c._id.toString());
-
     const allMetrics = await MetricDefinition.find().lean();
     const readableMetrics = allMetrics.filter(m =>
       !m.collectionIds?.length ||

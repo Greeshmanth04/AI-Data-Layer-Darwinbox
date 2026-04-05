@@ -298,7 +298,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                 {f.description ? (
                   <span className="text-slate-600 line-clamp-2">{f.description}</span>
                 ) : (
-                  <span className="text-slate-300 italic">Generating...</span>
+                  <span className="text-slate-400 italic font-medium">No description</span>
                 )}
               </td>
               <td className="px-6 py-4 text-center">

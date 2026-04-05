@@ -253,19 +253,7 @@ export class CatalogService {
       console.error(`[CatalogService] Failed to initialize field ${field.fieldName} with null:`, err);
     }
 
-    try {
-      const { description } = await LLMService.generateFieldDescription(
-        field.fieldName,
-        coll.name,
-        field.dataType,
-        coll.module,
-      );
-      field.aiDescription = description;
-      field.descriptionSource = 'ai';
-      await field.save();
-    } catch (err) {
-      console.error(`[CatalogService] Initial AI generation failed for ${field.fieldName}:`, err);
-    }
+
 
     await ActivityService.logActivity(userId, 'CREATED_FIELD', field.fieldName);
     

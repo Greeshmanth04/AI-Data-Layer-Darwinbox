@@ -193,12 +193,12 @@ async function seed() {
         isForeignKey: !!f.isForeignKey,
         isCustom: !!f.isCustom,
         ...(targetCollectionId ? { targetCollectionId } : {}),
-        ...(targetFieldId ? { targetFieldId } : {}),
+        ...(targetFieldId ? { targetFieldId } : { }),
         ...(relationshipLabel ? { relationshipLabel } : {}),
         ...(relationshipType ? { relationshipType } : {}),
-        aiDescription: `The ${f.dataType} value for ${humanName} within the ${entity} record mapping.`,
-        manualDescription: f.isCustom ? `Custom verified description for ${humanName}.` : null,
-        descriptionSource: f.isCustom ? 'manual' : 'ai',
+        aiDescription: null,
+        manualDescription: null,
+        descriptionSource: 'none',
         exampleValues: f.exampleValues || [],
         tags: f.tags || ['general']
       });
