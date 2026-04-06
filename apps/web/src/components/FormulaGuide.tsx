@@ -11,7 +11,7 @@ export function FormulaGuide({ isOpen, onClose }: FormulaGuideProps) {
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        
+
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-3">
@@ -30,7 +30,7 @@ export function FormulaGuide({ isOpen, onClose }: FormulaGuideProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          
+
           {/* Section 1: Basic Structure */}
           <section>
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3">
@@ -93,17 +93,17 @@ export function FormulaGuide({ isOpen, onClose }: FormulaGuideProps) {
             </p>
             <div className="bg-[#1E293B] text-slate-300 p-4 rounded-xl font-mono text-[12px] leading-loose shadow-inner relative">
               <div className="absolute top-2 right-3 text-[10px] uppercase font-bold text-slate-500">Examples</div>
-              
-              <span className="text-slate-500"># 1. Standard Arithmetic combining definitions</span><br/>
-              <span className="text-emerald-400">SUM</span>(payroll.salary) <span className="text-fuchsia-400">+</span> <span className="text-emerald-400">SUM</span>(payroll.hra)<br/><br/>
-              
-              <span className="text-slate-500"># 2. Applying mathematical scalar ratios</span><br/>
-              <span className="text-emerald-400">AVG</span>(employees.salary) <span className="text-fuchsia-400">*</span> <span className="text-amber-300">0.1</span><br/><br/>
-              
-              <span className="text-slate-500"># 3. Filtering specific internal records securely</span><br/>
-              <span className="text-emerald-400">COUNT</span>(employees <span className="text-fuchsia-400">WHERE</span> employment_status = <span className="text-amber-300">"active"</span>)<br/><br/>
 
-              <span className="text-slate-500"># 4. Advanced Graph Mapper (Cross-Collection Lookups)</span><br/>
+              <span className="text-slate-500"># 1. Standard Arithmetic combining definitions</span><br />
+              <span className="text-emerald-400">SUM</span>(payroll.salary) <span className="text-fuchsia-400">+</span> <span className="text-emerald-400">SUM</span>(payroll.hra)<br /><br />
+
+              <span className="text-slate-500"># 2. Applying mathematical scalar ratios</span><br />
+              <span className="text-emerald-400">AVG</span>(employees.salary) <span className="text-fuchsia-400">*</span> <span className="text-amber-300">0.1</span><br /><br />
+
+              <span className="text-slate-500"># 3. Filtering specific internal records securely</span><br />
+              <span className="text-emerald-400">COUNT</span>(employees <span className="text-fuchsia-400">WHERE</span> employment_status = <span className="text-amber-300">"active"</span>)<br /><br />
+
+              <span className="text-slate-500"># 4. Advanced Graph Mapper (Cross-Collection Lookups)</span><br />
               <span className="text-emerald-400">AVG</span>(payroll.net_salary <span className="text-fuchsia-400">WHERE</span> employees.department = <span className="text-amber-300">"Engineering"</span>)
             </div>
           </section>
@@ -137,27 +137,31 @@ export function FormulaGuide({ isOpen, onClose }: FormulaGuideProps) {
               <li>Add <b>filters</b> naturally: "where status is Active", "in Engineering department"</li>
             </ul>
 
-            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Example Mappings</h4>
-            <div className="space-y-2 mb-4">
-              <div className="bg-white/80 border border-slate-200/60 p-3 rounded-lg flex items-start gap-3">
-                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-100 px-1.5 py-0.5 rounded shrink-0 mt-0.5">PROMPT</span>
-                <div className="min-w-0">
-                  <p className="text-[13px] text-slate-700 font-medium">"Count all active employees"</p>
-                  <code className="text-[12px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded mt-1 inline-block font-bold">→ COUNT(employees WHERE status = "Active")</code>
+            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Detailed Examples</h4>
+            <div className="space-y-4 mb-6">
+              <div className="bg-white/80 border border-slate-200/60 p-4 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-100 px-1.5 py-0.5 rounded">NATURAL LANGUAGE</span>
+                  <span className="text-slate-400">→</span>
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">MANUAL FORMULA</span>
                 </div>
-              </div>
-              <div className="bg-white/80 border border-slate-200/60 p-3 rounded-lg flex items-start gap-3">
-                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-100 px-1.5 py-0.5 rounded shrink-0 mt-0.5">PROMPT</span>
-                <div className="min-w-0">
-                  <p className="text-[13px] text-slate-700 font-medium">"Average salary of employees in Engineering"</p>
-                  <code className="text-[12px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded mt-1 inline-block font-bold">→ AVG(employees.salary WHERE department = "Engineering")</code>
-                </div>
-              </div>
-              <div className="bg-white/80 border border-slate-200/60 p-3 rounded-lg flex items-start gap-3">
-                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-100 px-1.5 py-0.5 rounded shrink-0 mt-0.5">PROMPT</span>
-                <div className="min-w-0">
-                  <p className="text-[13px] text-slate-700 font-medium">"Total payroll net salary"</p>
-                  <code className="text-[12px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded mt-1 inline-block font-bold">→ SUM(payroll.net_salary)</code>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[13px] text-slate-700 font-medium mb-1">"Total active employee count"</p>
+                    <code className="text-[12px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">COUNT(employees WHERE status = "Active")</code>
+                  </div>
+                  <div>
+                    <p className="text-[13px] text-slate-700 font-medium mb-1">"Average net salary in Product team"</p>
+                    <code className="text-[12px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">AVG(payroll.net_salary WHERE employees.department = "Product")</code>
+                  </div>
+                  <div>
+                    <p className="text-[13px] text-slate-700 font-medium mb-1">"Sum of basic pay and HRA for Engineering"</p>
+                    <code className="text-[12px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">SUM(payroll.basic WHERE department = "Engineering") + SUM(payroll.hra WHERE department = "Engineering")</code>
+                  </div>
+                  <div>
+                    <p className="text-[13px] text-slate-700 font-medium mb-1">"Highest salary recorded this year"</p>
+                    <code className="text-[12px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">MAX(payroll.net_salary)</code>
+                  </div>
                 </div>
               </div>
             </div>
@@ -172,7 +176,7 @@ export function FormulaGuide({ isOpen, onClose }: FormulaGuideProps) {
           </section>
 
         </div>
-        
+
         {/* Footer */}
         <div className="p-4 border-t border-slate-100 shrink-0 flex justify-end">
           <button onClick={onClose} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors">

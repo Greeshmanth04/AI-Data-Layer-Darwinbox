@@ -38,32 +38,32 @@ function humanizeFieldName(name: string): string {
 function inferSemanticRole(name: string): string {
   const n = name.toLowerCase();
 
-  if (n.includes('_id') || n.endsWith('id'))   return 'unique identifier or foreign-key reference';
+  if (n.includes('_id') || n.endsWith('id')) return 'unique identifier or foreign-key reference';
   if (n.endsWith('_at') || n.endsWith('_date') || n.includes('date') || n.includes('_on'))
-                                                  return 'date/timestamp value';
+    return 'date/timestamp value';
   if (n.endsWith('_by') || n.includes('created_by') || n.includes('updated_by'))
-                                                  return 'actor / responsible user reference';
+    return 'actor / responsible user reference';
   if (n.includes('status') || n.includes('state')) return 'status or lifecycle state';
   if (n.includes('salary') || n.includes('pay') || n.includes('wage') || n.includes('ctc'))
-                                                  return 'compensation / remuneration value';
+    return 'compensation / remuneration value';
   if (n.includes('department') || n.includes('dept')) return 'department classification';
   if (n.includes('grade') || n.includes('level') || n.includes('band'))
-                                                  return 'job grade or seniority level';
+    return 'job grade or seniority level';
   if (n.includes('location') || n.includes('city') || n.includes('site'))
-                                                  return 'geographic location';
+    return 'geographic location';
   if (n.includes('name') || n.includes('title')) return 'human-readable name or label';
   if (n.includes('email') || n.includes('phone') || n.includes('contact'))
-                                                  return 'contact information';
+    return 'contact information';
   if (n.includes('manager') || n.includes('supervisor') || n.includes('reporting'))
-                                                  return 'reporting hierarchy reference';
+    return 'reporting hierarchy reference';
   if (n.includes('join') || n.includes('doj') || n.includes('hire'))
-                                                  return 'joining / hire date';
+    return 'joining / hire date';
   if (n.includes('exit') || n.includes('term') || n.includes('resignation'))
-                                                  return 'exit or termination event';
+    return 'exit or termination event';
   if (n.includes('flag') || n.includes('is_') || n.includes('has_'))
-                                                  return 'boolean flag / indicator';
+    return 'boolean flag / indicator';
   if (n.includes('count') || n.includes('total') || n.includes('num'))
-                                                  return 'numeric count or aggregate';
+    return 'numeric count or aggregate';
 
   return 'data attribute';
 }
@@ -97,9 +97,9 @@ export class LLMService {
     const entity = collectionName.replace(/s$/, '').replace(/[_\-]/g, ' ').toLowerCase();
 
     const typePrefix: Record<string, string> = {
-      date:      'The date and time of',
-      boolean:   'A flag indicating whether',
-      number:    'The numeric value for',
+      date: 'The date and time of',
+      boolean: 'A flag indicating whether',
+      number: 'The numeric value for',
       reference: 'The unique reference to the related',
     };
     const prefix = typePrefix[fieldType] ?? 'The value representing';
@@ -123,9 +123,9 @@ export class LLMService {
     fieldType: string,
     module: string = 'HR',
   ): Promise<{ description: string; source: 'ai' | 'fallback' }> {
-    const humanField  = humanizeFieldName(fieldName);
+    const humanField = humanizeFieldName(fieldName);
     const semanticRole = inferSemanticRole(fieldName);
-    const entity      = collectionName.replace(/[_\-]/g, ' ').toLowerCase();
+    const entity = collectionName.replace(/[_\-]/g, ' ').toLowerCase();
 
     const prompt = `You are a professional HR data architect at Darwinbox.
 Your task is to write a single, professional, factual description (max 25 words) for a database field in the ${module} module.
@@ -147,7 +147,7 @@ Description:`;
     try {
       const genAI = this.getClient();
       const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           temperature: 0.1, // Lower temperature for more factual consistency
           maxOutputTokens: 60,
@@ -165,7 +165,7 @@ Description:`;
 
       return { description: text, source: 'ai' };
     } catch (err) {
-      console.warn(`[LLMService] Gemini call failed for "${fieldName}":`, (err as Error).message);
+      console.error(`[LLMService] Gemini call failed for "${fieldName}". Reason:`, (err as Error).message);
       return { description: this.heuristicFallback(fieldName, collectionName, fieldType), source: 'fallback' };
     }
   }
@@ -179,7 +179,7 @@ Description:`;
    */
   static formatSchemaForPrompt(schema: { slug: string; name: string; fields: { name: string; type: string; description: string }[] }[]): string {
     return schema.map(c =>
-      `Collection: "${c.slug}" (${c.name})\n  Fields:\n${c.fields.map(f => 
+      `Collection: "${c.slug}" (${c.name})\n  Fields:\n${c.fields.map(f =>
         `    - ${f.name} [${f.type}]${f.description ? `: ${f.description}` : ''}`
       ).join('\n')}`
     ).join('\n\n');
@@ -235,7 +235,7 @@ ${prompt}`;
     try {
       const genAI = this.getClient();
       const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           temperature: 0.05,
           maxOutputTokens: 150,
@@ -259,8 +259,8 @@ ${prompt}`;
 
       return { formula, source: 'ai' };
     } catch (err: any) {
-      const errorMsg = err.stack || err.message || 'Unknown error';
-      console.warn('[LLMService] Gemini formula generation failed:', errorMsg);
+      const errorMsg = err.message || 'Unknown error';
+      console.error('[LLMService] Gemini formula generation failed. Reason:', errorMsg);
       const fallback = this.heuristicFormulaParser(prompt, schema);
       return { ...fallback, error: errorMsg };
     }
@@ -280,7 +280,7 @@ ${prompt}`;
     let func = 'COUNT';
     const hasTotal = /\btotal\b/.test(lower);
     const hasSumOf = /\b(sum\s+of|total\s+of|total\s+amount)\b/.test(lower);
-    
+
     if (/\b(average|avg|mean)\b/.test(lower)) func = 'AVG';
     else if (/\b(sum|total\s+of|sum\s+of|total\s+amount)\b/.test(lower)) func = 'SUM';
     else if (/\b(minimum|min|lowest|smallest)\b/.test(lower)) func = 'MIN';

@@ -207,6 +207,11 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
         aiDescription: data.description,
         descriptionSource: data.descriptionSource,
       }));
+      // Log to browser console if AI fell back to heuristic
+      if (data.source && data.source !== 'ai') {
+        console.warn(`[AI Description] ⚠️ AI is not working — fell back to "${data.source}" mode for this field.`);
+        console.warn(`[AI Description] The Gemini API may be unavailable (quota exceeded, invalid key, or network error). Check the server logs for details.`);
+      }
       // Show temporary success feedback on the button
       const btn = document.getElementById('regenerate-btn');
       if (btn) {
@@ -803,7 +808,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Field</p>
                         <select value={selectedField.targetFieldId || ''} onChange={e => updateFieldGeneralMutation.mutate({ id: selectedField._id, targetFieldId: e.target.value })} className="w-full border border-slate-200 rounded p-2 text-sm" disabled={!selectedField.targetCollectionId}>
                           <option value="">-- Select Field --</option>
-                           {targetCollectionDetail?.fields?.filter((f: any) => f.isPrimaryKey).map((f: any) => (
+                          {targetCollectionDetail?.fields?.filter((f: any) => f.isPrimaryKey).map((f: any) => (
                             <option key={f._id} value={f._id}>🔑 {f.fieldName} (PK)</option>
                           ))}
                           {targetCollectionDetail?.fields && targetCollectionDetail.fields.every((f: any) => !f.isPrimaryKey) && (
@@ -1151,7 +1156,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                 onChange={e => setFieldForm({ ...fieldForm, fieldName: e.target.value })}
                 className="w-full border border-slate-200 p-2 rounded font-mono text-sm"
               />
-               <select
+              <select
                 value={fieldForm.dataType}
                 onChange={e => setFieldForm({ ...fieldForm, dataType: e.target.value })}
                 className="w-full border border-slate-200 p-2 rounded text-sm"
@@ -1188,7 +1193,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                       <option key={c._id} value={c._id}>{c.name}</option>
                     ))}
                   </select>
-                   <select value={fieldForm.targetFieldId || ''} onChange={e => setFieldForm({ ...fieldForm, targetFieldId: e.target.value })} className="w-full text-sm p-2 border rounded" disabled={!fieldForm.targetCollectionId}>
+                  <select value={fieldForm.targetFieldId || ''} onChange={e => setFieldForm({ ...fieldForm, targetFieldId: e.target.value })} className="w-full text-sm p-2 border rounded" disabled={!fieldForm.targetCollectionId}>
                     <option value="">-- Target Field --</option>
                     {formTargetCollectionDetail?.fields?.filter((f: any) => f.isPrimaryKey).map((f: any) => (
                       <option key={f._id} value={f._id}>🔑 {f.fieldName} (PK)</option>

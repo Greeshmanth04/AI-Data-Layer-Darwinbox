@@ -49,14 +49,14 @@ export default function Metrics() {
   });
 
   const collectionsObj = catalogData?.data || {};
-  const collections = Array.isArray(collectionsObj) 
-    ? collectionsObj 
+  const collections = Array.isArray(collectionsObj)
+    ? collectionsObj
     : Object.values(collectionsObj).flat();
-  
+
   const metricsData: any[] = data?.data || [];
 
-  const filteredMetrics = metricsData.filter((m: any) => 
-    m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredMetrics = metricsData.filter((m: any) =>
+    m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     m.formula.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (m.description && m.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -91,9 +91,9 @@ export default function Metrics() {
       if (!res.ok) throw new Error(json?.error?.message || 'Create failed');
       return json;
     }),
-    onSuccess: (data) => { 
-      setShowForm(false); 
-      queryClient.invalidateQueries({ queryKey: ['metrics'] }); 
+    onSuccess: (data) => {
+      setShowForm(false);
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
       if (data?.data?._id) setSelectedMetricId(data.data._id);
     }
   });
@@ -113,10 +113,10 @@ export default function Metrics() {
       if (!res.ok) throw new Error(json?.error?.message || 'Delete failed');
       return json;
     }),
-    onSuccess: () => { 
+    onSuccess: () => {
       if (confirmDeleteId === selectedMetricId) setSelectedMetricId(null);
-      setConfirmDeleteId(null); 
-      queryClient.invalidateQueries({ queryKey: ['metrics'] }); 
+      setConfirmDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
     }
   });
 
@@ -181,9 +181,17 @@ export default function Metrics() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message || 'Generation failed');
-      const { formula, source, valid, validationError } = json.data;
+      const { formula, source, valid, validationError, debugError } = json.data;
       setFormData(prev => ({ ...prev, formula }));
       setNlSource(source);
+      if (source !== 'ai') {
+        console.warn(`[AI Formula Generator] ⚠️ AI is not working — fell back to "${source}" mode.`);
+        if (debugError) {
+          console.error(`[AI Formula Generator] Reason: ${debugError}`);
+        } else {
+          console.warn(`[AI Formula Generator] Reason: Gemini API returned an empty or invalid formula.`);
+        }
+      }
       if (!valid && validationError) {
         setNlError(`Generated formula may need adjustment: ${validationError}`);
       }
@@ -219,13 +227,13 @@ export default function Metrics() {
             <Plus size={16} />
           </button>
         </div>
-        
+
         <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
           <div className="relative">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
-            <input 
-              type="text" 
-              placeholder="Search formulas..." 
+            <input
+              type="text"
+              placeholder="Search formulas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-[13px] font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
@@ -239,7 +247,7 @@ export default function Metrics() {
               <p className="text-slate-400 text-[13px]">No metrics found.</p>
             </div>
           ) : (
-             Object.entries(grouped).map(([category, metrics]) => (
+            Object.entries(grouped).map(([category, metrics]) => (
               <div key={category}>
                 <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0 z-10">
                   {category}
@@ -284,144 +292,144 @@ export default function Metrics() {
           </div>
         ) : (
           <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            
+
             {/* Header portion */}
             <div className="flex justify-between items-start pb-6 border-b border-slate-200">
-               <div>
-                  <div className="flex items-center gap-3 mb-2">
-                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{selectedMetric.name}</h1>
-                     <span className="bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-slate-200">{selectedMetric.category || 'Uncategorized'}</span>
-                  </div>
-                  {selectedMetric.description ? (
-                     <p className="text-sm text-slate-500">{selectedMetric.description}</p>
-                  ) : (
-                     <p className="text-sm text-slate-400 italic">No description provided.</p>
-                  )}
-               </div>
-               <div className="flex items-center gap-2">
-                  <button onClick={() => openEditForm(selectedMetric)} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 px-3 py-1.5 rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
-                    <Pencil size={12} /> Edit Metric
-                  </button>
-                  <button onClick={() => setConfirmDeleteId(selectedMetric._id)} className="bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
-                    <Trash2 size={12} /> Delete
-                  </button>
-               </div>
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{selectedMetric.name}</h1>
+                  <span className="bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-slate-200">{selectedMetric.category || 'Uncategorized'}</span>
+                </div>
+                {selectedMetric.description ? (
+                  <p className="text-sm text-slate-500">{selectedMetric.description}</p>
+                ) : (
+                  <p className="text-sm text-slate-400 italic">No description provided.</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => openEditForm(selectedMetric)} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 px-3 py-1.5 rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                  <Pencil size={12} /> Edit Metric
+                </button>
+                <button onClick={() => setConfirmDeleteId(selectedMetric._id)} className="bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                  <Trash2 size={12} /> Delete
+                </button>
+              </div>
             </div>
 
             {/* Formula Viewer & Actions */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-               <div className="p-5 flex items-start gap-4">
-                  <div className="flex-1">
-                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><FileText size={12} /> Execution Formula</p>
-                     <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg font-mono text-sm text-indigo-700 w-full mb-4">
-                        {selectedMetric.formula}
-                     </div>
-                     
-                     <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handlePreview(selectedMetric._id)}
-                          disabled={activeResult?.previewing}
-                          className="bg-indigo-600 text-white shadow-sm px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50"
-                        >
-                          <Play size={12} fill="white" /> {activeResult?.previewing ? 'Computing...' : 'Run Live Preview'}
-                        </button>
-                        <button
-                          onClick={() => handleValidate(selectedMetric._id)}
-                          disabled={activeResult?.validating}
-                          className="bg-white text-slate-700 border border-slate-200 shadow-sm px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-50 transition flex items-center gap-2 disabled:opacity-50"
-                        >
-                          <CheckCircle size={12} /> {activeResult?.validating ? 'Validating...' : 'Validate Syntax'}
-                        </button>
-                     </div>
+              <div className="p-5 flex items-start gap-4">
+                <div className="flex-1">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><FileText size={12} /> Execution Formula</p>
+                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg font-mono text-sm text-indigo-700 w-full mb-4">
+                    {selectedMetric.formula}
                   </div>
-                  
-                  {/* Results Pillar */}
-                  <div className="w-64 shrink-0 bg-slate-50 rounded-xl border border-slate-100 p-4 flex flex-col items-center justify-center text-center min-h-[140px]">
-                     {activeResult?.error ? (
-                        <div className="text-red-600 flex flex-col items-center">
-                           <AlertTriangle size={24} className="mb-2 opacity-80" />
-                           <span className="text-xs font-bold">Execution Failed</span>
-                           <span className="text-[11px] font-medium mt-1 leading-tight">{activeResult.error}</span>
-                        </div>
-                     ) : activeResult?.result !== undefined ? (
-                        <div className="text-emerald-700 flex flex-col items-center">
-                           <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/70 mb-1">Live Result</span>
-                           <span className="text-3xl font-black">{activeResult.result.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                        </div>
-                     ) : selectedMetric.lastComputedValue !== undefined && selectedMetric.lastComputedValue !== null ? (
-                        <div className="text-slate-700 flex flex-col items-center">
-                           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Cached Result</span>
-                           <span className="text-3xl font-black">{selectedMetric.lastComputedValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                           {selectedMetric.lastComputedAt && <span className="text-[9px] text-slate-400 mt-2 font-medium"><Clock size={10} className="inline mr-1" />{new Date(selectedMetric.lastComputedAt).toLocaleString()}</span>}
-                        </div>
-                     ) : (
-                        <div className="text-slate-400 flex flex-col items-center">
-                           <Calculator size={24} className="mb-2 opacity-50" />
-                           <span className="text-xs font-medium">Click "Run Live Preview" to evaluate.</span>
-                        </div>
-                     )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handlePreview(selectedMetric._id)}
+                      disabled={activeResult?.previewing}
+                      className="bg-indigo-600 text-white shadow-sm px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <Play size={12} fill="white" /> {activeResult?.previewing ? 'Computing...' : 'Run Live Preview'}
+                    </button>
+                    <button
+                      onClick={() => handleValidate(selectedMetric._id)}
+                      disabled={activeResult?.validating}
+                      className="bg-white text-slate-700 border border-slate-200 shadow-sm px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-50 transition flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <CheckCircle size={12} /> {activeResult?.validating ? 'Validating...' : 'Validate Syntax'}
+                    </button>
                   </div>
-               </div>
+                </div>
+
+                {/* Results Pillar */}
+                <div className="w-64 shrink-0 bg-slate-50 rounded-xl border border-slate-100 p-4 flex flex-col items-center justify-center text-center min-h-[140px]">
+                  {activeResult?.error ? (
+                    <div className="text-red-600 flex flex-col items-center">
+                      <AlertTriangle size={24} className="mb-2 opacity-80" />
+                      <span className="text-xs font-bold">Execution Failed</span>
+                      <span className="text-[11px] font-medium mt-1 leading-tight">{activeResult.error}</span>
+                    </div>
+                  ) : activeResult?.result !== undefined ? (
+                    <div className="text-emerald-700 flex flex-col items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/70 mb-1">Live Result</span>
+                      <span className="text-3xl font-black">{activeResult.result.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                    </div>
+                  ) : selectedMetric.lastComputedValue !== undefined && selectedMetric.lastComputedValue !== null ? (
+                    <div className="text-slate-700 flex flex-col items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Cached Result</span>
+                      <span className="text-3xl font-black">{selectedMetric.lastComputedValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                      {selectedMetric.lastComputedAt && <span className="text-[9px] text-slate-400 mt-2 font-medium"><Clock size={10} className="inline mr-1" />{new Date(selectedMetric.lastComputedAt).toLocaleString()}</span>}
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 flex flex-col items-center">
+                      <Calculator size={24} className="mb-2 opacity-50" />
+                      <span className="text-xs font-medium">Click "Run Live Preview" to evaluate.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-6">
-               {/* Sandbox Test Box */}
-               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <div className="flex justify-between items-center mb-4">
-                     <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><FlaskConical size={14} className="text-indigo-500" /> Formula Sandbox</h3>
-                     <button onClick={() => setIsGuideOpen(true)} className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
-                        <BookOpen size={12} /> Syntax Help
-                     </button>
+              {/* Sandbox Test Box */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><FlaskConical size={14} className="text-indigo-500" /> Formula Sandbox</h3>
+                  <button onClick={() => setIsGuideOpen(true)} className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
+                    <BookOpen size={12} /> Syntax Help
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <FormulaAutocomplete
+                    value={formulaTest}
+                    onChange={(val) => setFormulaTest(val)}
+                    placeholder="SUM(employees.salary) * 1.5"
+                    rows={3}
+                    className="w-full text-xs font-mono p-3 border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500/50 outline-none resize-none"
+                  />
+                  <div className="flex justify-between items-center">
+                    <div>
+                      {sandboxResult !== null && <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-xs border border-emerald-100">{sandboxResult.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>}
+                      {sandboxError && <span className="font-medium text-[11px] text-red-500 block break-all">{sandboxError}</span>}
+                    </div>
+                    <button
+                      onClick={() => sandboxPreview.mutate()}
+                      disabled={sandboxPreview.isPending || !formulaTest.trim()}
+                      className="bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-md text-xs font-bold text-slate-700 transition flex items-center gap-1.5 shrink-0"
+                    >
+                      <Play size={10} /> Test
+                    </button>
                   </div>
-                  <div className="space-y-4">
-                     <FormulaAutocomplete
-                        value={formulaTest}
-                        onChange={(val) => setFormulaTest(val)}
-                        placeholder="SUM(employees.salary) * 1.5"
-                        rows={3}
-                        className="w-full text-xs font-mono p-3 border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500/50 outline-none resize-none"
-                     />
-                     <div className="flex justify-between items-center">
-                        <div>
-                           {sandboxResult !== null && <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-xs border border-emerald-100">{sandboxResult.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>}
-                           {sandboxError && <span className="font-medium text-[11px] text-red-500 block break-all">{sandboxError}</span>}
-                        </div>
-                        <button
-                           onClick={() => sandboxPreview.mutate()}
-                           disabled={sandboxPreview.isPending || !formulaTest.trim()}
-                           className="bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-md text-xs font-bold text-slate-700 transition flex items-center gap-1.5 shrink-0"
-                        >
-                           <Play size={10} /> Test
-                        </button>
-                     </div>
-                  </div>
-               </div>
+                </div>
+              </div>
 
-               {/* History Panel */}
-               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 overflow-hidden flex flex-col">
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4"><Clock size={14} className="text-indigo-500" /> Computation History</h3>
-                  <div className="flex-1 overflow-y-auto -mx-2">                     {selectedMetric.history && selectedMetric.history.length > 0 ? (
-                        <table className="w-full text-left text-xs">
-                           <thead className="text-[10px] text-slate-400 uppercase tracking-widest sticky top-0 bg-white">
-                              <tr>
-                                 <th className="font-semibold p-2 pb-3">Time</th>
-                                 <th className="font-semibold p-2 pb-3 text-right">Value</th>
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100">
-                              {selectedMetric.history.map((p: any, idx: number) => (
-                                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-2 text-slate-500 font-medium">{new Date(p.timestamp).toLocaleString()}</td>
-                                    <td className="p-2 text-right font-bold text-slate-800">{p.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                                 </tr>
-                              ))}
-                           </tbody>
-                        </table>
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-[11px] text-slate-400 italic">No historical runs recorded.</div>
-                     )}
-                  </div>
-               </div>
+              {/* History Panel */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 overflow-hidden flex flex-col">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4"><Clock size={14} className="text-indigo-500" /> Computation History</h3>
+                <div className="flex-1 overflow-y-auto -mx-2">                     {selectedMetric.history && selectedMetric.history.length > 0 ? (
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-[10px] text-slate-400 uppercase tracking-widest sticky top-0 bg-white">
+                      <tr>
+                        <th className="font-semibold p-2 pb-3">Time</th>
+                        <th className="font-semibold p-2 pb-3 text-right">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedMetric.history.map((p: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-2 text-slate-500 font-medium">{new Date(p.timestamp).toLocaleString()}</td>
+                          <td className="p-2 text-right font-bold text-slate-800">{p.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-[11px] text-slate-400 italic">No historical runs recorded.</div>
+                )}
+                </div>
+              </div>
             </div>
 
           </div>
@@ -514,11 +522,10 @@ export default function Metrics() {
                 )}
                 {nlSource && !nlError && (
                   <div className="mt-2 flex items-center gap-1.5">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      nlSource === 'ai'
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${nlSource === 'ai'
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-amber-50 text-amber-700 border-amber-200'
-                    }`}>
+                      }`}>
                       {nlSource === 'ai' ? '✨ AI Generated' : '⚡ Heuristic Match'}
                     </span>
                     <span className="text-[10px] text-slate-400 font-medium">Formula auto-filled below — feel free to edit.</span>
@@ -528,10 +535,10 @@ export default function Metrics() {
 
               <div>
                 <div className="flex justify-between items-center mb-1.5 pl-4 px-2">
-                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Formula Directive</label>
-                   <button onClick={() => setIsGuideOpen(true)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
-                      <BookOpen size={10} /> Syntax Guide
-                   </button>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Formula Directive</label>
+                  <button onClick={() => setIsGuideOpen(true)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
+                    <BookOpen size={10} /> Syntax Guide
+                  </button>
                 </div>
                 <FormulaAutocomplete
                   value={formData.formula}
@@ -567,7 +574,7 @@ export default function Metrics() {
       {confirmDeleteId && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-2xl w-96 shadow-xl animate-in fade-in zoom-in-95 duration-200">
-            <h2 className="text-lg font-bold mb-2 text-slate-900 flex items-center gap-2"><AlertTriangle size={18} className="text-red-500"/> Confirm Deletion</h2>
+            <h2 className="text-lg font-bold mb-2 text-slate-900 flex items-center gap-2"><AlertTriangle size={18} className="text-red-500" /> Confirm Deletion</h2>
             <p className="text-sm text-slate-500 mb-6 font-medium leading-relaxed">
               Are you sure you want to permanently delete this metric? This action cannot be undone.
             </p>
