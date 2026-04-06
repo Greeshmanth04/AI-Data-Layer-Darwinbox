@@ -184,12 +184,16 @@ export class CatalogService {
         const { allowed, denied } = resolved.effectiveFields;
         const collFields = allFields.filter(f => String(f.collectionId) === String(coll._id));
 
-        // Layer 2: Only expose permitted field names in dictionary
+        // Layer 2: Only expose permitted field metadata in dictionary
         const permittedFields = collFields.filter(f => {
           if (denied.includes(f.fieldName)) return false;
           if (allowed.length > 0 && !allowed.includes(f.fieldName)) return false;
           return true;
-        }).map(f => f.fieldName);
+        }).map(f => ({
+          name: f.fieldName,
+          type: f.dataType || 'string',
+          description: (f as any).manualDescription || (f as any).aiDescription || ''
+        }));
 
         dictionary.push({ _id: coll._id, name: coll.name, slug: coll.slug, fields: permittedFields });
       }

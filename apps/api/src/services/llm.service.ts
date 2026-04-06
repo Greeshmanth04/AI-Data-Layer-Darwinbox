@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+// No config/env import here to be ultra safe against circular imports during init
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Heuristic helpers
@@ -77,8 +78,9 @@ export class LLMService {
   private static getClient(): GoogleGenerativeAI {
     if (!this.client) {
       const apiKey = process.env.GEMINI_API_KEY;
+      console.log('[LLMService] Initializing with process.env.GEMINI_API_KEY present:', !!apiKey);
       if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-        throw new Error('GEMINI_API_KEY is not configured');
+        throw new Error('GEMINI_API_KEY is not configured in environment or .env');
       }
       this.client = new GoogleGenerativeAI(apiKey);
     }
@@ -175,9 +177,11 @@ Description:`;
   /**
    * Schema context entry from the catalog dictionary endpoint.
    */
-  static formatSchemaForPrompt(schema: { slug: string; name: string; fields: string[] }[]): string {
+  static formatSchemaForPrompt(schema: { slug: string; name: string; fields: { name: string; type: string; description: string }[] }[]): string {
     return schema.map(c =>
-      `Collection: "${c.slug}" (${c.name})\n  Fields: ${c.fields.join(', ')}`
+      `Collection: "${c.slug}" (${c.name})\n  Fields:\n${c.fields.map(f => 
+        `    - ${f.name} [${f.type}]${f.description ? `: ${f.description}` : ''}`
+      ).join('\n')}`
     ).join('\n\n');
   }
 
@@ -187,11 +191,11 @@ Description:`;
    */
   static async generateMetricFormula(
     prompt: string,
-    schema: { slug: string; name: string; fields: string[] }[],
-  ): Promise<{ formula: string; source: 'ai' | 'heuristic' }> {
+    schema: { slug: string; name: string; fields: { name: string; type: string; description: string }[] }[],
+  ): Promise<{ formula: string; source: 'ai' | 'heuristic'; error?: string }> {
     const schemaText = this.formatSchemaForPrompt(schema);
 
-    const systemPrompt = `You are a metric formula generator for an HR analytics platform.
+    const systemPrompt = `You are a metric formula generator for an HR analytics platform at Darwinbox.
 
 Your job: convert a natural language description into a metric formula using ONLY the syntax and schema below.
 
@@ -203,30 +207,27 @@ Your job: convert a natural language description into a metric formula using ONL
 - Arithmetic: formulas can be combined with +, -, *, / and parentheses
 - String values in WHERE must be wrapped in double quotes
 
-## Available Schema
+## Available Schema (Context is key!)
 ${schemaText}
 
-## Critical Rules
-- ONLY use collection slugs and field names from the schema above
-- Output ONLY the raw formula string — no explanation, no markdown, no quotes
-- If the request is ambiguous, make a reasonable assumption using the most likely collection/field
-- For "count" or "total" requests without a specific field, use COUNT(collection)
-- For "average", "mean" requests, use AVG(collection.field)
-- For "sum", "total of" requests with a numeric field, use SUM(collection.field)
-- Match field names case-insensitively against the schema
+## Critical Prompting Rules
+- ONLY use collection slugs and field names from the schema provided.
+- PRIORITIZE numeric fields for SUM, AVG, MIN, MAX. Check the field [type] in the schema.
+- USE field descriptions to resolve ambiguity. If the prompt asks for "Active" and a field says "Employment status", use that field.
+- Output ONLY the raw formula string — no explanation, no markdown, no quotes.
+- If the request is ambiguous, make a reasonable assumption using the most likely collection/field based on descriptions.
+- For "count" or "total" requests without a specific field, use COUNT(collection).
+- Match field names case-insensitively against the schema but use the exact casing from the schema in your output.
 
 ## Examples
 Input: "Count all active employees"
 Output: COUNT(employees WHERE status = "Active")
 
 Input: "Average salary of employees in Engineering"
-Output: AVG(employees.salary WHERE department = "Engineering")
+Output: AVG(employees.base_pay WHERE department = "Engineering")
 
-Input: "Total payroll cost"
+Input: "Total payroll cost this month"
 Output: SUM(payroll.net_salary)
-
-Input: "Headcount ratio of active to total employees"
-Output: COUNT(employees WHERE status = "Active") / COUNT(employees)
 
 Now generate the formula for:
 ${prompt}`;
@@ -257,9 +258,11 @@ ${prompt}`;
       }
 
       return { formula, source: 'ai' };
-    } catch (err) {
-      console.warn('[LLMService] Gemini formula generation failed:', (err as Error).message);
-      return this.heuristicFormulaParser(prompt, schema);
+    } catch (err: any) {
+      const errorMsg = err.stack || err.message || 'Unknown error';
+      console.warn('[LLMService] Gemini formula generation failed:', errorMsg);
+      const fallback = this.heuristicFormulaParser(prompt, schema);
+      return { ...fallback, error: errorMsg };
     }
   }
 
@@ -269,23 +272,27 @@ ${prompt}`;
    */
   static heuristicFormulaParser(
     prompt: string,
-    schema: { slug: string; name: string; fields: string[] }[],
+    schema: { slug: string; name: string; fields: { name: string; type: string; description: string }[] }[],
   ): { formula: string; source: 'heuristic' } {
     const lower = prompt.toLowerCase().trim();
 
     // ── Step 1: Determine aggregation function ──
     let func = 'COUNT';
+    const hasTotal = /\btotal\b/.test(lower);
+    const hasSumOf = /\b(sum\s+of|total\s+of|total\s+amount)\b/.test(lower);
+    
     if (/\b(average|avg|mean)\b/.test(lower)) func = 'AVG';
     else if (/\b(sum|total\s+of|sum\s+of|total\s+amount)\b/.test(lower)) func = 'SUM';
     else if (/\b(minimum|min|lowest|smallest)\b/.test(lower)) func = 'MIN';
     else if (/\b(maximum|max|highest|largest|top)\b/.test(lower)) func = 'MAX';
-    // "count", "how many", "number of", "headcount", "total" (without "of") → COUNT
+    // If "total" is mentioned but not specifically "total of", and we have hints of numeric fields, SUM often makes more sense for "Total X"
+    else if (hasTotal && /\b(salary|pay|net|gross|amount|cost|wage|ctc)\b/.test(lower)) func = 'SUM';
     else if (/\b(count|how\s+many|number\s+of|headcount|total)\b/.test(lower)) func = 'COUNT';
 
     // ── Step 2: Find the target collection ──
-    let matchedCollection: { slug: string; name: string; fields: string[] } | null = null;
+    let matchedCollection: { slug: string; name: string; fields: { name: string; type: string; description: string }[] } | null = null;
 
-    // Try to match collection by slug or name appearing in the prompt
+    // Try 1: match collection by slug or name appearing in the prompt
     for (const coll of schema) {
       const slugLower = coll.slug.toLowerCase();
       const nameLower = coll.name.toLowerCase();
@@ -297,7 +304,24 @@ ${prompt}`;
       }
     }
 
-    // If no collection found, use the first one (most likely "employees" in HR context)
+    // Try 2: If no collection name found, check which collection has the "best" matching field
+    if (!matchedCollection) {
+      let bestMatchLength = 0;
+      for (const coll of schema) {
+        for (const field of coll.fields) {
+          const fName = field.name.toLowerCase();
+          const fHuman = humanizeFieldName(field.name);
+          const regex = new RegExp(`\\b(${fName.replace(/_/g, '[_ ]')}|${fHuman})\\b`, 'i');
+          const match = lower.match(regex);
+          if (match && match[0].length > bestMatchLength) {
+            bestMatchLength = match[0].length;
+            matchedCollection = coll;
+          }
+        }
+      }
+    }
+
+    // Fallback: use the first one (most likely "employees" in HR context)
     if (!matchedCollection && schema.length > 0) {
       matchedCollection = schema[0];
     }
@@ -312,10 +336,11 @@ ${prompt}`;
     if (func !== 'COUNT') {
       // Try to find a field mentioned in the prompt
       for (const field of matchedCollection.fields) {
-        const fieldLower = field.toLowerCase();
-        const fieldHuman = humanizeFieldName(field);
-        if (lower.includes(fieldLower) || lower.includes(fieldHuman)) {
-          matchedField = field;
+        const fName = field.name.toLowerCase();
+        const fHuman = humanizeFieldName(field.name);
+        const regex = new RegExp(`\\b(${fName.replace(/_/g, '[_ ]')}|${fHuman})\\b`, 'i');
+        if (regex.test(lower)) {
+          matchedField = field.name;
           break;
         }
       }
@@ -324,8 +349,8 @@ ${prompt}`;
       if (!matchedField) {
         const numericHints = ['salary', 'pay', 'wage', 'amount', 'cost', 'ctc', 'net_salary', 'gross_salary', 'price', 'value', 'total', 'count', 'score', 'rating', 'age'];
         for (const hint of numericHints) {
-          const found = matchedCollection.fields.find(f => f.toLowerCase().includes(hint));
-          if (found) { matchedField = found; break; }
+          const found = matchedCollection.fields.find(f => f.name.toLowerCase().includes(hint));
+          if (found) { matchedField = found.name; break; }
         }
       }
 
@@ -353,20 +378,20 @@ ${prompt}`;
         if (pattern === wherePatterns[3]) {
           // "who are Active" → status = "Active"
           const statusField = matchedCollection.fields.find(f =>
-            f.toLowerCase().includes('status') || f.toLowerCase().includes('state')
+            f.name.toLowerCase().includes('status') || f.name.toLowerCase().includes('state')
           );
           if (statusField) {
             const val = match[1].charAt(0).toUpperCase() + match[1].slice(1);
-            whereClause = ` WHERE ${statusField} = "${val}"`;
+            whereClause = ` WHERE ${statusField.name} = "${val}"`;
           }
         } else if (pattern === wherePatterns[4] || pattern === wherePatterns[5]) {
           // "in Engineering department"
           const deptField = matchedCollection.fields.find(f =>
-            f.toLowerCase().includes('department') || f.toLowerCase().includes('dept')
+            f.name.toLowerCase().includes('department') || f.name.toLowerCase().includes('dept')
           );
           if (deptField) {
             const val = match[1].charAt(0).toUpperCase() + match[1].slice(1);
-            whereClause = ` WHERE ${deptField} = "${val}"`;
+            whereClause = ` WHERE ${deptField.name} = "${val}"`;
           }
         } else {
           // Generic "where field is value"
@@ -374,12 +399,12 @@ ${prompt}`;
           const fieldValue = match[2].trim();
           // Try to match "field" against actual schema fields
           const resolvedField = matchedCollection.fields.find(f =>
-            f.toLowerCase() === fieldName.toLowerCase() ||
-            humanizeFieldName(f) === fieldName.toLowerCase()
+            f.name.toLowerCase() === fieldName.toLowerCase() ||
+            humanizeFieldName(f.name) === fieldName.toLowerCase()
           );
           if (resolvedField) {
             const val = fieldValue.charAt(0).toUpperCase() + fieldValue.slice(1);
-            whereClause = ` WHERE ${resolvedField} = "${val}"`;
+            whereClause = ` WHERE ${resolvedField.name} = "${val}"`;
           }
         }
         break;
@@ -389,10 +414,10 @@ ${prompt}`;
     // Also check for "active" keyword as a special shorthand
     if (!whereClause && /\bactive\b/i.test(lower)) {
       const statusField = matchedCollection.fields.find(f =>
-        f.toLowerCase().includes('status') || f.toLowerCase().includes('state') || f.toLowerCase().includes('employment_status')
+        f.name.toLowerCase().includes('status') || f.name.toLowerCase().includes('state') || f.name.toLowerCase().includes('employment_status')
       );
       if (statusField) {
-        whereClause = ` WHERE ${statusField} = "Active"`;
+        whereClause = ` WHERE ${statusField.name} = "Active"`;
       }
     }
 

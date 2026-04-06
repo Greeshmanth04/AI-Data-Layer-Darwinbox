@@ -101,7 +101,7 @@ export const generateFormula = async (req: Request, res: Response, next: NextFun
     }
 
     // Generate formula via LLM (with heuristic fallback)
-    const { formula, source } = await LLMService.generateMetricFormula(prompt, schema);
+    const { formula, source, error } = await LLMService.generateMetricFormula(prompt, schema);
 
     // Validate the generated formula using existing validation logic
     let valid = true;
@@ -113,7 +113,7 @@ export const generateFormula = async (req: Request, res: Response, next: NextFun
       validationError = err.message || 'Generated formula failed validation';
     }
 
-    sendSuccess(res, 200, { formula, source, valid, validationError });
+    sendSuccess(res, 200, { formula, source, valid, validationError, debugError: error });
   } catch (err) { next(err); }
 };
 
