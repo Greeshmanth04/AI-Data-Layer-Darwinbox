@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
   getCollections, getCollectionById, createCollection, updateCollection, deleteCollection,
   getFieldById, updateField, generateFieldDescription, createField, deleteField,
-  getDictionary, bulkGenerateDescriptions
+  getDictionary, bulkGenerateDescriptions, validateCollectionTypes
 } from '../../controllers/catalog.controller';
 import { validateRequest } from '../../middleware/validate';
 import { authenticateUser } from '../../middleware/auth';
@@ -24,6 +24,9 @@ router.get('/collections', getCollections);
 // Layer 2: field projection applied (permittedFields)
 // Layer 3: row-count scoped to row query
 router.get('/collections/:id', getCollectionById);
+
+// Data Quality — Scans actual document values for type mismatches
+router.get('/collections/:id/validate-types', validateCollectionTypes);
 
 router.post('/collections', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.createCollectionSchema), createCollection);
 router.put('/collections/:id', requireRole(['platform_admin', 'data_steward']), validateRequest(schemas.updateCollectionSchema), updateCollection);

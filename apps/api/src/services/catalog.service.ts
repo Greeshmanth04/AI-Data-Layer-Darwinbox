@@ -231,12 +231,7 @@ export class CatalogService {
       }
       await SyncService.validateForeignKeyTarget(data.targetCollectionId, data.targetFieldId);
 
-      const targetField = await FieldMetadata.findById(data.targetFieldId).lean();
-      if (targetField) {
-        await SyncService.validateForeignKeyIntegrity(
-          data.collectionId, data.fieldName, data.targetCollectionId, targetField.fieldName
-        );
-      }
+
     }
 
     const fieldData = {
@@ -273,7 +268,7 @@ export class CatalogService {
 
 
     await ActivityService.logActivity(userId, 'CREATED_FIELD', field.fieldName);
-    
+
     return {
       ...field.toObject(),
       description: field.manualDescription || field.aiDescription || null,
@@ -304,12 +299,7 @@ export class CatalogService {
 
       if (effectiveTargetCollId && effectiveTargetFieldId) {
         await SyncService.validateForeignKeyTarget(effectiveTargetCollId, effectiveTargetFieldId);
-        const targetField = await FieldMetadata.findById(effectiveTargetFieldId).lean();
-        if (targetField) {
-          await SyncService.validateForeignKeyIntegrity(
-            field.collectionId, field.fieldName, effectiveTargetCollId, targetField.fieldName
-          );
-        }
+
       }
     }
 
@@ -356,7 +346,7 @@ export class CatalogService {
     }
 
     await ActivityService.logActivity(userId, 'UPDATED_FIELD', field.fieldName);
-    
+
     return {
       ...field.toObject(),
       description: field.manualDescription || field.aiDescription || null,

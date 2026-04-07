@@ -74,48 +74,6 @@ describe('SyncService Validation', () => {
         });
     });
 
-    describe('validateForeignKeyIntegrity', () => {
-        const mockSource = { _id: 'c1', name: 'employees', slug: 'employees' };
-        const mockTarget = { _id: 'c2', name: 'departments', slug: 'departments' };
-
-        test('should throw if orphaned values exist', async () => {
-            (CollectionMetadata.findById as jest.Mock)
-                .mockReturnValueOnce({ lean: () => Promise.resolve(mockSource) })
-                .mockReturnValueOnce({ lean: () => Promise.resolve(mockTarget) });
-
-            const mockDb = {
-                collection: jest.fn().mockImplementation((name) => ({
-                    distinct: jest.fn().mockImplementation((fieldName) => {
-                        if (name === 'employees') return Promise.resolve(['D1', 'D2', 'DORPHAN']);
-                        if (name === 'departments') return Promise.resolve(['D1', 'D2']);
-                        return Promise.resolve([]);
-                    })
-                }))
-            };
-            (FieldMetadata as any).db = { db: mockDb };
-
-            await expect(SyncService.validateForeignKeyIntegrity('c1', 'dept_id', 'c2', 'id'))
-                .rejects.toThrow(/do not exist in 'departments.id'/);
-        });
-
-        test('should pass if all values exist in target', async () => {
-            (CollectionMetadata.findById as jest.Mock)
-                .mockReturnValueOnce({ lean: () => Promise.resolve(mockSource) })
-                .mockReturnValueOnce({ lean: () => Promise.resolve(mockTarget) });
-
-            const mockDb = {
-                collection: jest.fn().mockImplementation((name) => ({
-                    distinct: jest.fn().mockImplementation((fieldName) => {
-                        if (name === 'employees') return Promise.resolve(['D1', 'D2']);
-                        if (name === 'departments') return Promise.resolve(['D1', 'D2', 'D3']);
-                        return Promise.resolve([]);
-                    })
-                }))
-            };
-            (FieldMetadata as any).db = { db: mockDb };
-
-        });
-    });
 
     describe('validateNotBothPkAndFk', () => {
         test('should throw 400 if both are true', () => {

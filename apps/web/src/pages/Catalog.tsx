@@ -4,9 +4,17 @@ import { apiClient } from '../api/client';
 import {
   Search, Edit3, X, Key, Hash, ChevronDown, ArrowLeft, Sparkles,
   Tag as TagIcon, Database, Activity, Plus, Trash2, RefreshCw,
-  Zap, ShieldCheck, AlertCircle, RotateCcw, AlertTriangle,
+  Zap, ShieldCheck, AlertCircle, RotateCcw, AlertTriangle, Info,
+  ClipboardCheck, CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+
+interface FieldValidationReport {
+  fieldName: string;
+  dataType: string;
+  typeMismatchCount: number;
+  sampleInvalidValues: string[];
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Description source badge
@@ -82,6 +90,12 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
     enabled: !!selectedCollId,
   });
 
+  const { data: typeValidationData } = useQuery<FieldValidationReport[]>({
+    queryKey: ['catalog-type-validation', selectedCollId],
+    queryFn: () => apiClient(`/catalog/collections/${selectedCollId}/validate-types`),
+    enabled: !!selectedCollId,
+  });
+
   const { data: targetCollectionDetail } = useQuery({
     queryKey: ['catalog-detail', selectedField?.targetCollectionId],
     queryFn: () =>
@@ -128,6 +142,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
       apiClient(`/catalog/fields/${data.id}`, { method: 'PUT', body: JSON.stringify(data) }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-type-validation', selectedCollId] });
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
       setSelectedField(data);
       setError(null);
@@ -166,6 +181,7 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['catalog-detail', selectedCollId] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-type-validation', selectedCollId] });
       queryClient.invalidateQueries({ queryKey: ['relationships'] });
       setShowFieldModal(false);
       setError(null);
@@ -300,9 +316,22 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                 {f.isForeignKey && <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-1 py-0.5 rounded tracking-wide">FK</span>}
               </td>
               <td className="px-6 py-4">
-                <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-mono font-semibold text-slate-700">
-                  {f.dataType}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-mono font-semibold text-slate-700">
+                    {f.dataType}
+                  </span>
+                  {(() => {
+                    const report = typeValidationData?.find(r => r.fieldName === f.fieldName);
+                    if (report && report.typeMismatchCount > 0) {
+                      return (
+                        <span className="flex items-center gap-1 bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold animate-pulse">
+                          <AlertTriangle size={10} /> {report.typeMismatchCount} mismatched
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
               </td>
               <td className="px-6 py-4 text-slate-500 text-xs max-w-xs">
                 {f.description ? (
@@ -1004,6 +1033,58 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
                   </div>
                 </div>
               </div>
+
+              {/* ── Data Quality card ───────────────────────────────────── */}
+              {(() => {
+                const report = typeValidationData?.find(r => r.fieldName === selectedField.fieldName);
+                const hasMismatches = report && report.typeMismatchCount > 0;
+
+                return (
+                  <div className={`bg-white rounded-2xl border ${hasMismatches ? 'border-amber-200' : 'border-slate-200'} shadow-sm flex flex-col transition-all mb-6`}>
+                    <div className={`${hasMismatches ? 'bg-amber-50/50' : 'bg-[#F8FAFC]'} px-5 py-4 border-b border-slate-100 flex justify-between items-center`}>
+                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <ClipboardCheck size={16} className={hasMismatches ? 'text-amber-500' : 'text-emerald-500'} /> Data Quality & Type Integrity
+                      </h3>
+                      {hasMismatches ? (
+                        <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                          <AlertTriangle size={10} /> Mismatch Detected
+                        </span>
+                      ) : (
+                        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                          <CheckCircle2 size={10} /> Validated
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-5 flex-1 space-y-4">
+                      {hasMismatches ? (
+                        <>
+                          <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 flex gap-3 items-start">
+                            <Info size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                            <p className="text-xs text-amber-800 leading-relaxed">
+                              Found <strong>{report.typeMismatchCount}</strong> documents where the value does not match the configured type <code>{selectedField.dataType}</code>. Check the samples below.
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Sample Invalid Values</p>
+                            <div className="flex flex-wrap gap-2">
+                              {report.sampleInvalidValues.map((val, i) => (
+                                <code key={i} className="bg-red-50 text-red-600 border border-red-100 text-[10px] px-2 py-1 rounded font-mono">
+                                  {val}
+                                </code>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-slate-500 font-medium">All stored values match the configured <code>{selectedField.dataType}</code> type.</p>
+                          <p className="text-xs text-slate-400 mt-1">Validated against the latest 5,000 records.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* ── Manual Override — Custom fields ONLY ─────────────────── */}
               {selectedField.isCustom && (

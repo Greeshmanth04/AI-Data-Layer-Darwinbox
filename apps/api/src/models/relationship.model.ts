@@ -6,7 +6,7 @@ export interface IRelationship extends Document {
   sourceFieldId: mongoose.Types.ObjectId;
   targetFieldId: mongoose.Types.ObjectId;
   label?: string;
-  relationshipType: 'one-to-one' | 'one-to-many' | 'many-to-one';
+  relationshipType: 'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many';
   isAutoDetected: boolean;
 }
 
@@ -16,7 +16,7 @@ const RelationshipSchema = new Schema<IRelationship>({
   sourceFieldId: { type: Schema.Types.ObjectId, ref: 'FieldMetadata', required: true },
   targetFieldId: { type: Schema.Types.ObjectId, ref: 'FieldMetadata', required: true },
   label: { type: String },
-  relationshipType: { type: String, enum: ['one-to-one', 'one-to-many', 'many-to-one'], default: 'one-to-many' },
+  relationshipType: { type: String, enum: ['one-to-one', 'one-to-many', 'many-to-one', 'many-to-many'], default: 'one-to-many' },
   isAutoDetected: { type: Boolean, default: false }
 }, { timestamps: true });
 

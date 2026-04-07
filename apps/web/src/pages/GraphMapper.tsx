@@ -136,6 +136,14 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
   const sourceFields = sourceCollData?.fields || [];
   const targetFields = targetCollData?.fields || [];
 
+  // Derived selection objects for data-type validation
+  const selectedSourceField = sourceFields.find((f: any) => f.fieldName === edgeForm.sourceField);
+  const selectedTargetField = targetFields.find((f: any) => f.fieldName === edgeForm.targetField);
+  const dataTypeMismatch =
+    !!selectedSourceField?.dataType &&
+    !!selectedTargetField?.dataType &&
+    selectedSourceField.dataType !== selectedTargetField.dataType;
+
   const [nodes, setNodes] = useState<Node[]>([]);
   const onNodesChange = useCallback((changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)), []);
 
@@ -443,17 +451,17 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
                   </div>
                 </div>
                 <div className="p-6 flex gap-2 border-t border-gray-100 bg-gray-50/50 flex-shrink-0">
-                  <button onClick={() => { 
-                    setEdgeForm({ 
-                      sourceCollection: rel.sourceCollection, 
-                      targetCollection: rel.targetCollection, 
-                      sourceField: rel.sourceField, 
-                      targetField: rel.targetField, 
-                      relationshipType: rel.relationshipType === 'one-to-one' ? '1:1' : rel.relationshipType === 'many-to-one' ? 'M:N' : '1:N', 
-                      label: rel.label || '' 
-                    }); 
-                    setError(null); 
-                    setShowEditForm(true); 
+                  <button onClick={() => {
+                    setEdgeForm({
+                      sourceCollection: rel.sourceCollection,
+                      targetCollection: rel.targetCollection,
+                      sourceField: rel.sourceField,
+                      targetField: rel.targetField,
+                      relationshipType: rel.relationshipType === 'one-to-one' ? '1:1' : rel.relationshipType === 'many-to-one' ? 'M:N' : '1:N',
+                      label: rel.label || ''
+                    });
+                    setError(null);
+                    setShowEditForm(true);
                   }} className="flex-1 flex items-center justify-center gap-2 bg-white text-gray-700 hover:bg-gray-50 py-2.5 rounded-lg transition-colors border border-gray-200 shadow-sm font-semibold text-[13px]">
                     Edit Connection
                   </button>
@@ -477,6 +485,15 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
               <div className="mb-5 flex items-start gap-2 bg-red-50 border border-red-100 text-red-700 px-4 py-3 rounded-xl text-xs animate-in slide-in-from-top-2 duration-200">
                 <AlertCircle size={14} className="mt-0.5 shrink-0" />
                 <span className="font-medium leading-relaxed">{error}</span>
+              </div>
+            )}
+
+            {dataTypeMismatch && (
+              <div className="mb-5 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-xs animate-in slide-in-from-top-2 duration-200">
+                <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-500" />
+                <span className="font-medium leading-relaxed">
+                  <strong>Data type mismatch:</strong> Source field <code className="bg-amber-100 px-1 rounded">{edgeForm.sourceField}</code> is <code className="bg-amber-100 px-1 rounded">{selectedSourceField?.dataType}</code> but target field <code className="bg-amber-100 px-1 rounded">{edgeForm.targetField}</code> is <code className="bg-amber-100 px-1 rounded">{selectedTargetField?.dataType}</code>. Both fields must share the same data type.
+                </span>
               </div>
             )}
 
@@ -506,9 +523,10 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
               </div>
 
               <select value={edgeForm.relationshipType} onChange={e => setEdgeForm({ ...edgeForm, relationshipType: e.target.value })} className="w-full border border-gray-200 p-2.5 rounded-lg text-[13px] focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-800 bg-white">
-                <option value="1:1">1:1 (One to One)</option>
-                <option value="1:N">1:N (One to Many)</option>
-                <option value="M:N">M:N (Many to Many)</option>
+                <option value="1:1">1:1  (One-to-One)</option>
+                <option value="1:N">1:N  (One-to-Many)</option>
+                <option value="N:1">N:1  (Many-to-One)</option>
+                <option value="M:N">N:N  (Many-to-Many)</option>
               </select>
 
               <input value={edgeForm.label} onChange={e => setEdgeForm({ ...edgeForm, label: e.target.value })} placeholder="Optional: Edge Label (e.g. Hiring Manager)" className="w-full border border-gray-200 p-2.5 rounded-lg text-[13px] bg-white text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none" />
@@ -517,14 +535,14 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
             <div className="flex justify-end gap-3 mt-8">
               <button onClick={() => { setShowCreateForm(false); setShowEditForm(false); }} className="px-5 py-2.5 text-[13px] text-gray-600 font-semibold hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
               <button onClick={() => {
-                const mapType = (t: string) => t === '1:1' ? 'one-to-one' : t === 'M:N' ? 'many-to-one' : 'one-to-many';
-                
+                const mapType = (t: string) => t === '1:1' ? 'one-to-one' : t === 'M:N' ? 'many-to-many' : t === 'N:1' ? 'many-to-one' : 'one-to-many';
+
                 const sColl = collections.find((c: any) => c.slug === edgeForm.sourceCollection);
                 const tColl = collections.find((c: any) => c.slug === edgeForm.targetCollection);
-                
+
                 const sFieldId = sourceFields.find((f: any) => f.fieldName === edgeForm.sourceField)?._id || (edgeForm.sourceField === '_id' ? sourceFields.find((f: any) => f.isPrimaryKey)?._id : null);
                 const tFieldId = targetFields.find((f: any) => f.fieldName === edgeForm.targetField)?._id || (edgeForm.targetField === '_id' ? targetFields.find((f: any) => f.isPrimaryKey)?._id : null);
-                
+
                 const payload = {
                   sourceCollectionId: sColl?._id,
                   targetCollectionId: tColl?._id,
@@ -539,7 +557,7 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
                 } else {
                   createEdgeMutation.mutate(payload);
                 }
-              }} disabled={createEdgeMutation.isPending || updateEdgeMutation.isPending} className="px-6 py-2.5 bg-indigo-600 text-white text-[13px] font-bold rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+              }} disabled={dataTypeMismatch || createEdgeMutation.isPending || updateEdgeMutation.isPending} className="px-6 py-2.5 bg-indigo-600 text-white text-[13px] font-bold rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                 {showEditForm ? 'Save Changes' : 'Create Edge'}
               </button>
             </div>

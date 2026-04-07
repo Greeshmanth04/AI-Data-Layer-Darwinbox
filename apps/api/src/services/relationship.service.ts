@@ -30,7 +30,7 @@ export class RelationshipService {
     for (const edge of rawEdges) {
       const sourceSlug = slugMap.get(edge.sourceCollectionId.toString());
       const targetSlug = slugMap.get(edge.targetCollectionId.toString());
-      
+
       if (!sourceSlug || !targetSlug) continue;
 
       const srcPerms = await PermissionService.resolveCollectionPermissions(userId, sourceSlug, false);
@@ -42,7 +42,7 @@ export class RelationshipService {
       if (srcPerms && tgtPerms && sourceFieldName && targetFieldName) {
         const srcDenied = srcPerms.effectiveFields.denied.includes(sourceFieldName);
         const srcMissing = srcPerms.effectiveFields.allowed.length > 0 && !srcPerms.effectiveFields.allowed.includes(sourceFieldName);
-        
+
         const tgtDenied = tgtPerms.effectiveFields.denied.includes(targetFieldName);
         const tgtMissing = tgtPerms.effectiveFields.allowed.length > 0 && !tgtPerms.effectiveFields.allowed.includes(targetFieldName);
 
@@ -78,15 +78,15 @@ export class RelationshipService {
         // e.g. employee_id → employee
         const baseName = field.fieldName.replace(/_id$/i, '').replace(/Id$/i, '');
         const potentialTargetSingular = baseName.toLowerCase();
-        
-        const targetColl = collections.find(c => 
-          c.slug.toLowerCase() === potentialTargetSingular + 's' || 
+
+        const targetColl = collections.find(c =>
+          c.slug.toLowerCase() === potentialTargetSingular + 's' ||
           c.slug.toLowerCase() === potentialTargetSingular
         );
 
         if (targetColl && targetColl.slug !== sourceColl.slug) {
           const pkField = fields.find(f => f.collectionId.toString() === targetColl._id.toString() && f.isPrimaryKey);
-          
+
           if (pkField) {
             const exists = await Relationship.exists({
               sourceCollectionId: sourceColl._id,
@@ -130,7 +130,13 @@ export class RelationshipService {
     }
 
     await SyncService.validateForeignKeyTarget(String(tColl._id), String(tField._id));
-    await SyncService.validateForeignKeyIntegrity(sColl._id, sField.fieldName, tColl._id, tField.fieldName);
+    await SyncService.validateRelationshipDataTypes(String(sField._id), String(tField._id));
+    await SyncService.validateRelationshipCardinality(
+      sColl._id, String(sField._id),
+      tColl._id, String(tField._id),
+      data.relationshipType || 'one-to-many'
+    );
+
 
     const edge = await Relationship.create({ ...data, isAutoDetected: false });
 
@@ -163,7 +169,13 @@ export class RelationshipService {
 
       if (sField && tField) {
         await SyncService.validateForeignKeyTarget(String(tColl._id), String(tField._id));
-        await SyncService.validateForeignKeyIntegrity(sColl._id, sField.fieldName, tColl._id, tField.fieldName);
+        await SyncService.validateRelationshipDataTypes(String(sField._id), String(tField._id));
+        await SyncService.validateRelationshipCardinality(
+          sColl._id, String(sField._id),
+          tColl._id, String(tField._id),
+          data.relationshipType || 'one-to-many'
+        );
+
       }
     }
 

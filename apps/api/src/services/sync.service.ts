@@ -273,49 +273,134 @@ export class SyncService {
   }
 
   /**
-   * Validate referential integrity: all non-null values in the source field
-   * must exist in the target collection's PK field.
+   * Validate that the source and target fields share the same data type.
+   * A relationship between fields of different types is semantically invalid
+   * and will produce incorrect JOIN results at query time.
    */
-  static async validateForeignKeyIntegrity(
-    sourceCollectionId: string | mongoose.Types.ObjectId,
-    fieldName: string,
-    targetCollectionId: string | mongoose.Types.ObjectId,
-    targetFieldName: string
+  static async validateRelationshipDataTypes(
+    sourceFieldId: string,
+    targetFieldId: string
   ): Promise<void> {
-    const sourceColl = await CollectionMetadata.findById(sourceCollectionId).lean();
-    const targetColl = await CollectionMetadata.findById(targetCollectionId).lean();
-    if (!sourceColl || !targetColl) return;
+    const [sourceField, targetField] = await Promise.all([
+      FieldMetadata.findById(sourceFieldId).lean(),
+      FieldMetadata.findById(targetFieldId).lean(),
+    ]);
 
-    const db = (FieldMetadata.db as any).db;
-    if (!db) return; // Skip if no direct DB access
+    if (!sourceField || !targetField) return; // Already caught by caller
 
-    try {
-      // Get distinct non-null values from source field
-      const sourceValues: any[] = await db.collection(sourceColl.slug)
-        .distinct(fieldName, { [fieldName]: { $ne: null, $exists: true } });
+    const srcType = sourceField.dataType;
+    const tgtType = targetField.dataType;
 
-      if (sourceValues.length === 0) return; // No data to check
-
-      // Get distinct values from target PK field
-      const targetValues: any[] = await db.collection(targetColl.slug)
-        .distinct(targetFieldName, { [targetFieldName]: { $ne: null, $exists: true } });
-
-      const targetSet = new Set(targetValues.map(String));
-      const orphaned = sourceValues.filter(v => !targetSet.has(String(v)));
-
-      if (orphaned.length > 0) {
-        const examples = orphaned.slice(0, 3).join(', ');
-        throw new AppError(
-          400,
-          'FK_INTEGRITY_FAILED',
-          `Referential integrity violation: ${orphaned.length} value(s) in '${fieldName}' do not exist in '${targetColl.name}.${targetFieldName}' (e.g. ${examples}).`
-        );
-      }
-    } catch (err: any) {
-      if (err instanceof AppError) throw err;
-      console.warn('[SyncService] FK integrity check failed:', err.message);
+    if (srcType && tgtType && srcType !== tgtType) {
+      throw new AppError(
+        400,
+        'RELATIONSHIP_DATA_TYPE_MISMATCH',
+        `Data type mismatch: source field '${sourceField.fieldName}' is '${srcType}' but target field '${targetField.fieldName}' is '${tgtType}'. Both fields must share the same data type to form a valid relationship.`
+      );
     }
   }
+
+
+  // ─────────────────────────────────────────────────────────────
+  // Relationship Cardinality Validation
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Detect the actual cardinality of a relationship by querying real MongoDB data.
+   *
+   * Algorithm:
+   *   - sourceUnique: all values in source field are distinct (no duplicates)
+   *   - targetUnique: all values in target field are distinct (no duplicates)
+   *
+   *   sourceUnique AND targetUnique  → one-to-one
+   *   NOT sourceUnique AND targetUnique → one-to-many   (many source rows → one target row)
+   *   sourceUnique AND NOT targetUnique → many-to-one   (one source row → many target rows)
+   *   NOT sourceUnique AND NOT targetUnique → many-to-many
+   *
+   * Returns null when there is not enough data to make a determination (empty collections).
+   */
+  private static async detectActualCardinality(
+    sourceSlug: string,
+    sourceFieldName: string,
+    targetSlug: string,
+    targetFieldName: string
+  ): Promise<'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many' | null> {
+    const db = (FieldMetadata.db as any).db;
+    if (!db) return null;
+
+    try {
+      const [srcTotal, srcDistinct, tgtTotal, tgtDistinct] = await Promise.all([
+        db.collection(sourceSlug).countDocuments({ [sourceFieldName]: { $ne: null, $exists: true } }),
+        (async () => {
+          const vals = await db.collection(sourceSlug).distinct(sourceFieldName, { [sourceFieldName]: { $ne: null, $exists: true } });
+          return vals.length;
+        })(),
+        db.collection(targetSlug).countDocuments({ [targetFieldName]: { $ne: null, $exists: true } }),
+        (async () => {
+          const vals = await db.collection(targetSlug).distinct(targetFieldName, { [targetFieldName]: { $ne: null, $exists: true } });
+          return vals.length;
+        })(),
+      ]);
+
+      // Not enough data — skip validation
+      if (srcTotal === 0 || tgtTotal === 0) return null;
+
+      const sourceUnique = srcTotal === srcDistinct;
+      const targetUnique = tgtTotal === tgtDistinct;
+
+      if (sourceUnique && targetUnique) return 'one-to-one';
+      if (!sourceUnique && targetUnique) return 'one-to-many';
+      if (sourceUnique && !targetUnique) return 'many-to-one';
+      return 'many-to-many';
+    } catch {
+      return null; // Non-blocking: if query fails, skip
+    }
+  }
+
+  /**
+   * Validate that the requested relationship type matches the actual data cardinality.
+   * Throws INVALID_RELATIONSHIP_TYPE with a helpful detected-type message on mismatch.
+   * Silently skips when collections have no data.
+   */
+  static async validateRelationshipCardinality(
+    sourceCollectionId: string | mongoose.Types.ObjectId,
+    sourceFieldId: string,
+    targetCollectionId: string | mongoose.Types.ObjectId,
+    targetFieldId: string,
+    requestedType: string
+  ): Promise<void> {
+    const [sourceColl, targetColl, sourceField, targetField] = await Promise.all([
+      CollectionMetadata.findById(sourceCollectionId).lean(),
+      CollectionMetadata.findById(targetCollectionId).lean(),
+      FieldMetadata.findById(sourceFieldId).lean(),
+      FieldMetadata.findById(targetFieldId).lean(),
+    ]);
+
+    if (!sourceColl || !targetColl || !sourceField || !targetField) return;
+
+    const detected = await this.detectActualCardinality(
+      sourceColl.slug, sourceField.fieldName,
+      targetColl.slug, targetField.fieldName
+    );
+
+    if (!detected) return; // No data — skip
+
+    if (detected !== requestedType) {
+      const friendlyMap: Record<string, string> = {
+        'one-to-one': '1:1  (One-to-One)',
+        'one-to-many': '1:N  (One-to-Many)',
+        'many-to-one': 'N:1  (Many-to-One)',
+        'many-to-many': 'N:N  (Many-to-Many)',
+      };
+      throw new AppError(
+        400,
+        'INVALID_RELATIONSHIP_TYPE',
+        `Relationship type mismatch: you selected '${friendlyMap[requestedType] || requestedType}' but the actual data cardinality is '${friendlyMap[detected]}'. ` +
+        `Please choose '${friendlyMap[detected]}' or adjust the fields to match the intended cardinality.`
+      );
+    }
+  }
+
 
   // ─────────────────────────────────────────────────────────────
   // PK Uniqueness
@@ -337,6 +422,112 @@ export class SyncService {
       },
       { $set: { isPrimaryKey: false } }
     );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Data Quality — Field Type Value Validation
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Validate that actual MongoDB document values match each field's configured dataType.
+   *
+   * Type check rules:
+   *   string   → typeof v === 'string'
+   *   number   → typeof v === 'number'
+   *   boolean  → typeof v === 'boolean'
+   *   date     → instanceof Date || isNaN(Date.parse(v)) === false
+   *   objectid → 24-char hex string or BSON ObjectId
+   *
+   * null / undefined values are ignored (not counted as mismatches).
+   */
+  static async validateFieldDataTypes(
+    collectionId: string | mongoose.Types.ObjectId
+  ): Promise<Array<{
+    fieldName: string;
+    dataType: string;
+    typeMismatchCount: number;
+    sampleInvalidValues: string[];
+  }>> {
+    const coll = await CollectionMetadata.findById(collectionId).lean();
+    if (!coll) return [];
+
+    const fields = await FieldMetadata.find({ collectionId }).lean();
+    if (fields.length === 0) return [];
+
+    const db = (FieldMetadata.db as any).db;
+    if (!db) return [];
+
+    const isValidForType = (value: any, dataType: string): boolean => {
+      switch (dataType) {
+        case 'string':
+          return typeof value === 'string';
+        case 'number':
+          return typeof value === 'number';
+        case 'boolean':
+          return typeof value === 'boolean';
+        case 'date':
+          if (value instanceof Date) return true;
+          if (typeof value === 'string') return !isNaN(Date.parse(value));
+          return false;
+        case 'objectid':
+        case 'reference': {
+          const s = String(value);
+          return /^[a-fA-F0-9]{24}$/.test(s) || (typeof value === 'object' && value !== null && value._bsontype === 'ObjectId');
+        }
+        default:
+          return true; // Unknown types are not validated
+      }
+    };
+
+    const reports = [];
+
+    for (const field of fields) {
+      try {
+        // Fetch all non-null values for this field from the real collection
+        const docs: any[] = await db.collection(coll.slug)
+          .find(
+            { [field.fieldName]: { $ne: null, $exists: true } },
+            { projection: { [field.fieldName]: 1, _id: 0 } }
+          )
+          .limit(5000) // Cap to avoid memory issues on large collections
+          .toArray();
+
+        const invalidValues: string[] = [];
+
+        for (const doc of docs) {
+          const value = doc[field.fieldName];
+          if (value === null || value === undefined) continue;
+
+          if (!isValidForType(value, field.dataType)) {
+            const repr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+            const truncated = repr.length > 80 ? repr.substring(0, 80) + '…' : repr;
+            if (!invalidValues.includes(truncated)) {
+              invalidValues.push(truncated);
+            }
+          }
+        }
+
+        if (invalidValues.length > 0) {
+          reports.push({
+            fieldName: field.fieldName,
+            dataType: field.dataType,
+            typeMismatchCount: invalidValues.length,
+            sampleInvalidValues: invalidValues.slice(0, 5),
+          });
+        } else {
+          reports.push({
+            fieldName: field.fieldName,
+            dataType: field.dataType,
+            typeMismatchCount: 0,
+            sampleInvalidValues: [],
+          });
+        }
+      } catch (err: any) {
+        console.warn(`[SyncService] Type validation failed for field '${field.fieldName}':`, err.message);
+      }
+    }
+
+    return reports;
   }
 
   /**

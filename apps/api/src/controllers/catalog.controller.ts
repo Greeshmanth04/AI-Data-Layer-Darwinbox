@@ -204,3 +204,19 @@ export const bulkGenerateDescriptions = async (req: Request, res: Response, next
     });
   } catch (err) { next(err); }
 };
+
+// ─────────────────────────────────────────────────────────────
+// Data Quality — Field Type Validation
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * GET /catalog/collections/:id/validate-types
+ * Scans actual document values for every field in the collection
+ * and reports type mismatches against the configured dataType.
+ */
+export const validateCollectionTypes = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const reports = await SyncService.validateFieldDataTypes(req.params.id);
+    sendSuccess(res, 200, reports);
+  } catch (err) { next(err); }
+};
