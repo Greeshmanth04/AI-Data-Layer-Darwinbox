@@ -447,6 +447,8 @@ export class SyncService {
     dataType: string;
     typeMismatchCount: number;
     sampleInvalidValues: string[];
+    nullCount: number;
+    duplicateCount: number;
   }>> {
     const coll = await CollectionMetadata.findById(collectionId).lean();
     if (!coll) return [];
@@ -483,19 +485,37 @@ export class SyncService {
 
     for (const field of fields) {
       try {
-        // Fetch all non-null values for this field from the real collection
-        const docs: any[] = await db.collection(coll.slug)
+        const fieldName = field.fieldName;
+        const collection = db.collection(coll.slug);
+
+        // 1. Get total record count vs non-null count for this field
+        const totalDocs = await collection.countDocuments({});
+        const nonNullCount = await collection.countDocuments({ [fieldName]: { $ne: null, $exists: true } });
+        const nullCount = totalDocs - nonNullCount;
+
+        // 2. Efficiently find duplicates using aggregation
+        const duplicateResults = await collection.aggregate([
+          { $match: { [fieldName]: { $ne: null, $exists: true } } },
+          { $group: { _id: `$${fieldName}`, count: { $sum: 1 } } },
+          { $match: { count: { $gt: 1 } } },
+          { $group: { _id: null, totalDuplicates: { $sum: { $subtract: ['$count', 1] } } } }
+        ]).toArray();
+
+        const duplicateCount = duplicateResults.length > 0 ? (duplicateResults[0] as any).totalDuplicates : 0;
+
+        // 3. Keep existing type validation check (fetching samples)
+        const docs: any[] = await collection
           .find(
-            { [field.fieldName]: { $ne: null, $exists: true } },
-            { projection: { [field.fieldName]: 1, _id: 0 } }
+            { [fieldName]: { $ne: null, $exists: true } },
+            { projection: { [fieldName]: 1, _id: 0 } }
           )
-          .limit(5000) // Cap to avoid memory issues on large collections
+          .limit(5000)
           .toArray();
 
         const invalidValues: string[] = [];
 
         for (const doc of docs) {
-          const value = doc[field.fieldName];
+          const value = doc[fieldName];
           if (value === null || value === undefined) continue;
 
           if (!isValidForType(value, field.dataType)) {
@@ -507,23 +527,25 @@ export class SyncService {
           }
         }
 
-        if (invalidValues.length > 0) {
-          reports.push({
-            fieldName: field.fieldName,
-            dataType: field.dataType,
-            typeMismatchCount: invalidValues.length,
-            sampleInvalidValues: invalidValues.slice(0, 5),
-          });
-        } else {
-          reports.push({
-            fieldName: field.fieldName,
-            dataType: field.dataType,
-            typeMismatchCount: 0,
-            sampleInvalidValues: [],
-          });
-        }
+        reports.push({
+          fieldName,
+          dataType: field.dataType,
+          typeMismatchCount: invalidValues.length,
+          sampleInvalidValues: invalidValues.slice(0, 5),
+          nullCount,
+          duplicateCount
+        });
+
       } catch (err: any) {
         console.warn(`[SyncService] Type validation failed for field '${field.fieldName}':`, err.message);
+        reports.push({
+          fieldName: field.fieldName,
+          dataType: field.dataType,
+          typeMismatchCount: 0,
+          sampleInvalidValues: [],
+          nullCount: 0,
+          duplicateCount: 0
+        });
       }
     }
 

@@ -5,7 +5,7 @@ import {
   Search, Edit3, X, Key, Hash, ChevronDown, ArrowLeft, Sparkles,
   Tag as TagIcon, Database, Activity, Plus, Trash2, RefreshCw,
   Zap, ShieldCheck, AlertCircle, RotateCcw, AlertTriangle, Info,
-  ClipboardCheck, CheckCircle2
+  ClipboardCheck, CheckCircle2, Lock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -14,6 +14,8 @@ interface FieldValidationReport {
   dataType: string;
   typeMismatchCount: number;
   sampleInvalidValues: string[];
+  nullCount: number;
+  duplicateCount: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -793,26 +795,56 @@ export default function Catalog({ onNavigate }: { onNavigate?: (tab: string) => 
 
                 <div className="grid grid-cols-2 gap-6 items-start">
                   <div className="flex flex-col gap-4">
-                    <label className={`flex items-center gap-3 ${isAdmin ? 'cursor-pointer' : 'opacity-70'}`}>
-                      <input type="checkbox" checked={selectedField.isPrimaryKey}
-                        disabled={!isAdmin}
-                        onChange={e => {
-                          const val = e.target.checked;
-                          if (val && selectedField.isForeignKey) { alert("Field cannot be both PK and FK"); return; }
-                          updateFieldGeneralMutation.mutate({ id: selectedField._id, isPrimaryKey: val });
-                        }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 disabled:opacity-50" />
-                      <div>
-                        <p className="text-sm font-bold text-slate-700">Primary Key</p>
-                        <p className="text-xs text-slate-500">Uniquely identifies records in this collection</p>
-                      </div>
-                    </label>
+                    {(() => {
+                      const report = typeValidationData?.find(r => r.fieldName === selectedField.fieldName);
+                      const isEligible = !report || ((report.duplicateCount ?? 0) === 0 && (report.nullCount ?? 0) === 0);
+                      const reason = (report?.duplicateCount ?? 0) > 0 ? 'duplicate' : 'null or empty';
+
+                      if (!isEligible && !selectedField.isPrimaryKey) {
+                        return (
+                          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex gap-3 items-start opacity-70">
+                            <Lock size={16} className="text-slate-400 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-bold text-slate-400">Primary Key</p>
+                              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                                This field cannot be a Primary Key because it contains <strong>{reason}</strong> values.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <label className={`flex items-center gap-3 ${isAdmin ? 'cursor-pointer' : 'opacity-70'}`}>
+                          <input type="checkbox" checked={selectedField.isPrimaryKey}
+                            disabled={!isAdmin}
+                            onChange={e => {
+                              const val = e.target.checked;
+                              if (val && selectedField.isForeignKey) {
+                                setError("Field cannot be both PK and FK");
+                                setTimeout(() => setError(null), 5000);
+                                return;
+                              }
+                              updateFieldGeneralMutation.mutate({ id: selectedField._id, isPrimaryKey: val });
+                            }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 disabled:opacity-50" />
+                          <div>
+                            <p className="text-sm font-bold text-slate-700">Primary Key</p>
+                            <p className="text-xs text-slate-500">Uniquely identifies records in this collection</p>
+                          </div>
+                        </label>
+                      );
+                    })()}
 
                     <label className={`flex items-center gap-3 ${isAdmin ? 'cursor-pointer' : 'opacity-70'}`}>
                       <input type="checkbox" checked={selectedField.isForeignKey}
                         disabled={!isAdmin}
                         onChange={e => {
                           const val = e.target.checked;
-                          if (val && selectedField.isPrimaryKey) { alert("Field cannot be both PK and FK"); return; }
+                          if (val && selectedField.isPrimaryKey) {
+                            setError("Field cannot be both PK and FK");
+                            setTimeout(() => setError(null), 5000);
+                            return;
+                          }
                           updateFieldGeneralMutation.mutate({ id: selectedField._id, isForeignKey: val });
                         }} className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 disabled:opacity-50" />
                       <div>

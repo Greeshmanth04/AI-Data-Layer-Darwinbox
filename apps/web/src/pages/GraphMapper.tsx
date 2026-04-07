@@ -144,6 +144,18 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
     !!selectedTargetField?.dataType &&
     selectedSourceField.dataType !== selectedTargetField.dataType;
 
+  // Auto-set Target Field to Primary Key of Target Collection
+  useEffect(() => {
+    if (edgeForm.targetCollection && targetFields.length > 0) {
+      const pkField = targetFields.find((f: any) => f.isPrimaryKey);
+      if (pkField) {
+        setEdgeForm(prev => ({ ...prev, targetField: pkField.fieldName }));
+      } else {
+        setEdgeForm(prev => ({ ...prev, targetField: '' }));
+      }
+    }
+  }, [edgeForm.targetCollection, targetFields]);
+
   const [nodes, setNodes] = useState<Node[]>([]);
   const onNodesChange = useCallback((changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)), []);
 
@@ -515,12 +527,23 @@ export default function GraphMapper({ onNavigate }: { onNavigate?: (tab: string)
                   <option value="_id">_id</option>
                   {sourceFields.map((f: any) => <option key={f._id} value={f.fieldName}>{f.fieldName}</option>)}
                 </select>
-                <select disabled={!edgeForm.targetCollection} value={edgeForm.targetField} onChange={e => { setEdgeForm({ ...edgeForm, targetField: e.target.value }); setError(null); }} className="w-full border border-gray-200 p-2.5 rounded-lg text-[13px] font-mono focus:ring-2 disabled:bg-gray-50 bg-white text-gray-800 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
-                  <option value="" disabled>Target Field</option>
-                  <option value="_id">_id</option>
-                  {targetFields.map((f: any) => <option key={f._id} value={f.fieldName}>{f.fieldName}</option>)}
-                </select>
+                <div className="w-full">
+                  <input
+                    readOnly
+                    type="text"
+                    value={edgeForm.targetField || (edgeForm.targetCollection ? 'No PK Found' : 'Target Field')}
+                    className="w-full border border-gray-200 p-2.5 rounded-lg text-[13px] font-mono bg-gray-50 text-gray-500 outline-none cursor-not-allowed"
+                    placeholder="Target Field"
+                  />
+                </div>
               </div>
+
+              {!targetFields.find((f: any) => f.isPrimaryKey) && edgeForm.targetCollection && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-700 px-3 py-2.5 rounded-lg text-xs animate-in slide-in-from-top-1 duration-200">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span className="font-medium tracking-tight">No primary key found for selected collection</span>
+                </div>
+              )}
 
               <select value={edgeForm.relationshipType} onChange={e => setEdgeForm({ ...edgeForm, relationshipType: e.target.value })} className="w-full border border-gray-200 p-2.5 rounded-lg text-[13px] focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-800 bg-white">
                 <option value="1:1">1:1  (One-to-One)</option>
