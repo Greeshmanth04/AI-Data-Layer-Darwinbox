@@ -6,8 +6,6 @@ import { FormulaAutocomplete } from '../components/FormulaAutocomplete';
 import { apiClient } from '../api/client';
 
 export default function Metrics() {
-  const token = localStorage.getItem('token');
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   const queryClient = useQueryClient();
 
   // Selected State

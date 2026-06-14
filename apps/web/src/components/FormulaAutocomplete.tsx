@@ -56,9 +56,6 @@ interface AutocompleteProps {
 }
 
 export function FormulaAutocomplete({ value, onChange, placeholder, className, rows = 3 }: AutocompleteProps) {
-  const token = localStorage.getItem('token');
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
   // Fetch permitted collections logic
   const { data: dictRes } = useQuery({
     queryKey: ['catalog-dictionary'],
