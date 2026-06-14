@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '../api/client';
 import { FunctionSquare, Database, Hash } from 'lucide-react';
 
 const FUNCTIONS = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'WHERE'];
@@ -61,7 +62,7 @@ export function FormulaAutocomplete({ value, onChange, placeholder, className, r
   // Fetch permitted collections logic
   const { data: dictRes } = useQuery({
     queryKey: ['catalog-dictionary'],
-    queryFn: () => fetch('/api/v1/catalog/dictionary', { headers }).then(res => res.json())
+    queryFn: () => apiClient('/catalog/dictionary')
   });
 
   const dictionary: DictionaryEntry[] = dictRes?.data || [];

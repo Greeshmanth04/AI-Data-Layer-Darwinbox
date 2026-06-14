@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Pencil, Trash2, X, CheckCircle, AlertTriangle, Clock, FlaskConical, Search, Calculator, FileText, BookOpen, Sparkles, Wand2, Loader2 } from 'lucide-react';
 import { FormulaGuide } from '../components/FormulaGuide';
 import { FormulaAutocomplete } from '../components/FormulaAutocomplete';
+import { apiClient } from '../api/client';
 
 export default function Metrics() {
   const token = localStorage.getItem('token');
@@ -39,13 +40,13 @@ export default function Metrics() {
   // Fetch metrics
   const { data } = useQuery({
     queryKey: ['metrics'],
-    queryFn: () => fetch('/api/v1/metrics', { headers }).then(res => res.json())
+    queryFn: () => apiClient('/metrics')
   });
 
   // Fetch collections for baseCollection dropdown
   const { data: catalogData } = useQuery({
     queryKey: ['catalog-collections'],
-    queryFn: () => fetch('/api/v1/catalog/collections', { headers }).then(res => res.json())
+    queryFn: () => apiClient('/catalog/collections')
   });
 
   const collectionsObj = catalogData?.data || {};
@@ -73,46 +74,30 @@ export default function Metrics() {
 
   // Sandbox preview
   const sandboxPreview = useMutation({
-    mutationFn: () => fetch('/api/v1/metrics/preview', {
-      method: 'POST', headers, body: JSON.stringify({ formula: formulaTest })
-    }).then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message || 'Preview failed');
-      return data;
+    mutationFn: () => apiClient('/metrics/preview', {
+      method: 'POST', body: JSON.stringify({ formula: formulaTest })
     }),
-    onSuccess: (data) => { setSandboxResult(data.data.result); setSandboxError(''); },
+    onSuccess: (data) => { setSandboxResult(data.result); setSandboxError(''); },
     onError: (err: any) => { setSandboxResult(null); setSandboxError(err.message); }
   });
 
   // CRUD mutations
   const createMetric = useMutation({
-    mutationFn: (data: any) => fetch('/api/v1/metrics', { method: 'POST', headers, body: JSON.stringify(data) }).then(async res => {
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || 'Create failed');
-      return json;
-    }),
+    mutationFn: (data: any) => apiClient('/metrics', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: (data) => {
       setShowForm(false);
       queryClient.invalidateQueries({ queryKey: ['metrics'] });
-      if (data?.data?._id) setSelectedMetricId(data.data._id);
+      if (data?._id) setSelectedMetricId(data._id);
     }
   });
 
   const updateMetric = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: any }) => fetch(`/api/v1/metrics/${id}`, { method: 'PUT', headers, body: JSON.stringify(payload) }).then(async res => {
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || 'Update failed');
-      return json;
-    }),
+    mutationFn: ({ id, payload }: { id: string; payload: any }) => apiClient(`/metrics/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
     onSuccess: () => { setShowForm(false); setEditingMetric(null); queryClient.invalidateQueries({ queryKey: ['metrics'] }); }
   });
 
   const deleteMetric = useMutation({
-    mutationFn: (id: string) => fetch(`/api/v1/metrics/${id}`, { method: 'DELETE', headers }).then(async res => {
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || 'Delete failed');
-      return json;
-    }),
+    mutationFn: (id: string) => apiClient(`/metrics/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       if (confirmDeleteId === selectedMetricId) setSelectedMetricId(null);
       setConfirmDeleteId(null);
@@ -124,10 +109,8 @@ export default function Metrics() {
   const handlePreview = async (id: string) => {
     setMetricResults(s => ({ ...s, [id]: { ...s[id], previewing: true, error: undefined } }));
     try {
-      const res = await fetch(`/api/v1/metrics/${id}/preview`, { method: 'POST', headers });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || 'Preview failed');
-      setMetricResults(s => ({ ...s, [id]: { result: json.data.result, previewing: false } }));
+      const json = await apiClient(`/metrics/${id}/preview`, { method: 'POST' });
+      setMetricResults(s => ({ ...s, [id]: { result: json.result, previewing: false } }));
       queryClient.invalidateQueries({ queryKey: ['metrics'] });
     } catch (err: any) {
       setMetricResults(s => ({ ...s, [id]: { error: err.message, previewing: false } }));
@@ -138,9 +121,7 @@ export default function Metrics() {
   const handleValidate = async (id: string) => {
     setMetricResults(s => ({ ...s, [id]: { ...s[id], validating: true, error: undefined } }));
     try {
-      const res = await fetch(`/api/v1/metrics/${id}/validate`, { method: 'POST', headers });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || 'Validation failed');
+      await apiClient(`/metrics/${id}/validate`, { method: 'POST' });
       setMetricResults(s => ({ ...s, [id]: { ...s[id], validating: false, result: undefined, error: undefined } }));
       alert('✅ Formula syntax is valid!');
     } catch (err: any) {
@@ -174,14 +155,11 @@ export default function Metrics() {
     setNlError('');
     setNlSource(null);
     try {
-      const res = await fetch('/api/v1/metrics/generate-formula', {
+      const json = await apiClient('/metrics/generate-formula', {
         method: 'POST',
-        headers,
         body: JSON.stringify({ prompt: nlPrompt.trim() })
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || 'Generation failed');
-      const { formula, source, valid, validationError, debugError } = json.data;
+      const { formula, source, valid, validationError, debugError } = json;
       setFormData(prev => ({ ...prev, formula }));
       setNlSource(source);
       if (source !== 'ai') {

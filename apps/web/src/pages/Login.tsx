@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { apiClient } from '../api/client';
 import { Database, Lock, Mail } from 'lucide-react';
 
 interface LoginProps {
@@ -17,14 +18,11 @@ export default function Login({ onNavigateRegister }: LoginProps) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/login', {
+      const data = await apiClient('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || 'Login failed');
-      login(data.data.token, data.data.user);
+      login(data.token, data.user);
     } catch (err: any) {
       setError(err.message);
     } finally {

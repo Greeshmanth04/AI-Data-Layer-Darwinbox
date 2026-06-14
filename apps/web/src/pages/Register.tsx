@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiClient } from '../api/client';
 import { Database, Lock, Mail, User } from 'lucide-react';
 
 interface RegisterProps {
@@ -19,13 +20,10 @@ export default function Register({ onNavigateLogin }: RegisterProps) {
     setSuccess('');
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/register', {
+      await apiClient('/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || 'Registration failed');
       setSuccess('Registration successful! Please wait for a platform admin to approve your account.');
     } catch (err: any) {
       setError(err.message);
