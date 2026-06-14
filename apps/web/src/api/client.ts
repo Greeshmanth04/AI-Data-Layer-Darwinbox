@@ -4,7 +4,8 @@ export const apiClient = async (url: string, options: RequestInit = {}) => {
   headers.set('Content-Type', 'application/json');
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
-  const res = await fetch(`/api/v1${url}`, { ...options, headers });
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
+  const res = await fetch(`${BASE_URL}${url}`, { ...options, headers });
   const data = await res.json();
   
   if (!res.ok) {
